@@ -1,4 +1,4 @@
-# VESC M365 Dash
+# VESC Scooter Support
 Allows you to connect your XIAOMI or NINEBOT display to VESC controller.
 
 ## How
@@ -10,9 +10,9 @@ Read one of the guides below to get started.
 
 ## Which version should I use?
 
-If you are running **VESC 6.06**, use these:
-- **M365**: https://github.com/m365fw/vesc_m365_dash/blob/main/m365_dash.lisp
-- **G30**: https://github.com/m365fw/vesc_m365_dash/blob/main/g30_dash.lisp
+If you are running **VESC 7.00**, use these:
+- **M365**: https://github.com/1zun4/vesc_scooter_support/blob/main/g30_dash.lisp
+- **G30**: https://github.com/1zun4/vesc_scooter_support/blob/main/g30_dash.lisp
 - **How-To** Video: https://www.youtube.com/watch?v=kX8PsaxfoXQ
 
 ## How do I wire it?
@@ -37,36 +37,32 @@ Features to be added:
 - [ ] App communication
 - [ ] More unlock combinations
 
-## Fixed to be done
-- [x] ~~Figure out why 0x64 packets are not being read. (on my setup)~~ (Can be ignored due to the fact that we do not have to receive any 0x64 packets to sent our own 0x64 back)
-- [x] ~~Figure out why button reading is randomly~~ (can be fixed with 470R resistor between 3.3v and RX and capacitor on 3.3v+GND)
-
 ## Tested on
 ### BLEs
 - Clone M365 PRO Dashboard ([AliExpress](https://s.click.aliexpress.com/e/_9JHFDN))
 - Original DE-Edition PRO 2 Dashboard
+- Original DE-Edition G30 Dashboard
 
-### VESCs
-- Ubox (Best choice):
-    - Single Ubox 80v 100A Alu PCB ([Spintend](https://spintend.com/collections/diy-electric-skateboard-parts/products/single-ubox-aluminum-controller-80v-100a-based-on-vesc?ref=1zuna))
-- 75100 Box:
-    - Makerbase 75100 VESC ([AliExpress](https://s.click.aliexpress.com/e/_DmJxqxr) - 75€)
-    - Flipsky 75100 VESC ([Banggood](https://banggood.onelink.me/zMT7/zmenvmm2) - with Honey Add-On about 87€)
+### Known compatible VESCs
+- Spintend (Reliable & High Performance):
+    - [Ubox Single Lite 100V 100A](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-100v-100a-based-on-vesc?ref=1zuna)
+    - [Ubox Single 85V 250A V2](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-85v-250a-v2-based-on-vesc?ref=1zuna)
 
-- 75100 Alu PCB:
-    - Makerbase 75100 Alu PCB ([AliExpress](https://s.click.aliexpress.com/e/_DE9TKAl) - 95€)
-    - Flipsky 75100 Alu PCB ([AliExpress](https://s.click.aliexpress.com/e/_DEXNhX3) - 151€)
+- Makerbase:
+    - [Makerbase VESC 60100HP V2 60V 100A](https://s.click.aliexpress.com/e/_c4N2B2WD)
+    - [Makerbase VESC 84100HP 84V 100A](https://de.aliexpress.com/item/1005006515708671.html?pdp_npi=4%40dis%21EUR%21%E2%82%AC+164%2C35%21%E2%82%AC+90%2C39%21%21%21186.38%21102.51%21%400b88abba17794626397951757e0f1c%2112000037495490277%21sh%21DE%212612418744%21X&spm=a2g0o.store_pc_allItems_or_groupList.new_all_items_2007473458239.1005006515708671&gatewayAdapt=glo2deu)
+    - [Makerbase VESC 84200HP 84V 200A](https://s.click.aliexpress.com/e/_c4EFhPk1)
 
-- 75200 Alu PCB (Top Performance):
-    - Makerbase 75200 Alu PCB ([AliExpress](https://s.click.aliexpress.com/e/_Dk3ucKd) - 143€)
-    - Flipsky 75200 Alu PCB ([AliExpress](https://s.click.aliexpress.com/e/_DkxlJbj) - 266€)
+- 75100 Alu PCB (Not recommeded):
+    - [Makerbase 75100 Alu PCB](https://s.click.aliexpress.com/e/_DE9TKAl)
+    - [Flipsky 75100 Alu PCB](https://s.click.aliexpress.com/e/_DEXNhX3)
 
 - More recommended VESCs:
-    - MP2 300A 100V/150V VESC ([GitHub](https://github.com/badgineer/MP2-ESC) - DIY)
+    - [MP2 300A 100V/150V VESC](https://github.com/badgineer/MP2-ESC)
     - and many more... use whatever you like.
 
 #### Requirements on VESC
-Requires 6.05+ VESC firmware. \
+Requires 7.00 VESC firmware. \
 Can be found here: https://vesc-project.com/
 
 ## Worth to check out!
