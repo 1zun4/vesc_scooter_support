@@ -1,7 +1,9 @@
-; G30 dashboard compability lisp script v1.2 by Izuna and AKA13
+; G30 dashboard support lisp script v1.3 by Izuna and AKA13
+; Tested with VESC 7.00 on Spintend Ubox Single 85 200
+
+; -> Installation
 ; UART Wiring: red=5V black=GND yellow=COM-TX (UART-HDX) green=COM-RX (button)+3.3V with 1K Resistor
 ; Guide (German): https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/
-; Tested on VESC 6.05 on G30D w/ MKS 84100HP, MKS84200HP and MP2 300A VESC
 
 ; -> User parameters (change these to your needs)
 (def software-adc 1)
@@ -55,16 +57,6 @@
 (import "pkg@://vesc_packages/lib_code_server/code_server.vescpkg" 'code-server)
 (read-eval-program code-server)
 
-; Packet handling
-(uart-start 115200 'half-duplex)
-(gpio-configure 'pin-rx 'pin-mode-in-pu)
-(define tx-frame (array-create 15))
-(bufset-u16 tx-frame 0 0x5AA5) ;Ninebot protocol
-(bufset-u8 tx-frame 2 0x06) ;Payload length is 5 bytes
-(bufset-u16 tx-frame 3 0x2021) ; Packet is from ESC to BLE
-(bufset-u16 tx-frame 5 0x6400) ; Packet is from ESC to BLE
-(def uart-buf (array-create 64))
-
 ; Button handling
 (def press-time (systime))
 (def presses 0)
@@ -83,11 +75,6 @@
 ; sound feedback
 (def feedback 0)
 
-(if (= software-adc 1)
-    (app-adc-detach 3 1)
-    (app-adc-detach 3 0)
-)
-
 (defun adc-input(buffer) ; Frame 0x65
     {
         (let ((throttle (/(bufget-u8 uart-buf 5) 77.2)) ; 255/3.3 = 77.2
@@ -101,7 +88,7 @@
                     (setf brake 0))
                 (if (> brake 3.3)
                     (setf brake 3.3))
-                
+
                 ; Pass through throttle and brake to VESC
                 (app-adc-override 0 throttle)
                 (app-adc-override 1 brake)
@@ -149,10 +136,10 @@
                 (if (or (> (get-temp-fet) temp-warning-fet) (> (get-temp-mot) temp-warning-motor)) ; temp icon will show up above warning degree
                     (bufset-u8 tx-frame 7 (+ 128 speedmode))
                     (bufset-u8 tx-frame 7 speedmode)
-                )            
+                )
             )
         )
-                
+
         ; batt field
         (if (= lock 1)
             (bufset-u8 tx-frame 8 0) ; lock display
@@ -167,7 +154,7 @@
             )
             (bufset-u8 tx-frame 9 0)
         )
-                
+
         ; beep field
         (if (> feedback 0)
             {
@@ -186,7 +173,7 @@
                 (bufset-u8 tx-frame 11 current-speed)
             )
         )
-        
+
         ; error field
         (if (> alarm 0)
             (bufset-u8 tx-frame 12 99) ; alarm active
@@ -221,8 +208,8 @@
 
                             (let ((code (bufget-u8 uart-buf 2)) (checksum (bufget-u16 uart-buf (+ len 4))))
                                 {
-                                    (looprange i 0 (+ len 4) (set 'crc (+ crc (bufget-u8 uart-buf i))))    
-                                
+                                    (looprange i 0 (+ len 4) (set 'crc (+ crc (bufget-u8 uart-buf i))))
+
                                     (if (= checksum (bitwise-and (+ (shr (bitwise-xor crc 0xFFFF) 8) (shl (bitwise-xor crc 0xFFFF) 8)) 65535)) ;If the calculated checksum matches with sent checksum, forward comman
                                         (handle-frame code)
                                     )
@@ -241,7 +228,7 @@
         (if (and (= code 0x65) (= software-adc 1))
             (adc-input uart-buf)
         )
-        
+
         (if(= code 0x64)
             (update-dash uart-buf)
         )
@@ -262,7 +249,7 @@
                 (set 'feedback 1) ; beep feedback
                 (set 'light (bitwise-xor light 1)) ; toggle light
             )
-            
+
         )
         (if (>= presses 2) ; double press
             {
@@ -385,7 +372,7 @@
     {
         ; alarm detection
         (var gyro (get-gyro))
-        (cond 
+        (cond
             ; gyro detects movement while locked
             ((and (= lock 1) (or (> (abs (ix gyro 0)) alarm-gyro-threshold) (> (abs (ix gyro 1)) alarm-gyro-threshold) (> (abs (ix gyro 2)) alarm-gyro-threshold))) ; locked and moving
                 (start-alarm)
@@ -436,7 +423,7 @@
                     )
                     (set 'feedback 1)
                 }
-            
+
             )
             ((= alarm 8) ; repeat alarm sound
                 {
@@ -495,8 +482,8 @@
     {
         (var gyro (get-imu-gyro))
         (if (and (= (length gyro) 3)
-                (or (> (abs (ix gyro 0)) 0) 
-                (> (abs (ix gyro 1)) 0) 
+                (or (> (abs (ix gyro 0)) 0)
+                (> (abs (ix gyro 1)) 0)
                 (> (abs (ix gyro 2)) 0)))
             (return gyro)
         )
@@ -507,8 +494,8 @@
 
                 (if (and (eq (type-of can-gyro) 'type-list)
                         (= (length can-gyro) 3)
-                        (or (> (abs (ix can-gyro 0)) 0) 
-                        (> (abs (ix can-gyro 1)) 0) 
+                        (or (> (abs (ix can-gyro 0)) 0)
+                        (> (abs (ix can-gyro 1)) 0)
                         (> (abs (ix can-gyro 2)) 0)))
                     (return can-gyro)
                 )
@@ -531,7 +518,7 @@
                 (if (not (= button buttonconfirm))
                     (set 'button 0)
                 )
-                
+
                 (if (> buttonold button)
                     {
                         (set 'presses (+ presses 1))
@@ -539,7 +526,7 @@
                     }
                     (button-apply button)
                 )
-                
+
                 (set 'buttonold button)
                 (handle-features)
             }
@@ -575,9 +562,29 @@
     }
 )
 
-; Apply mode on start-up
-(apply-mode)
+(defun main () {
+        ; Packet handling
+        (uart-start 115200 'half-duplex)
+        (gpio-configure 'pin-rx 'pin-mode-in-pu)
+        (define tx-frame (array-create 15))
+        (bufset-u16 tx-frame 0 0x5AA5) ;Ninebot protocol
+        (bufset-u8 tx-frame 2 0x06) ;Payload length is 5 bytes
+        (bufset-u16 tx-frame 3 0x2021) ; Packet is from ESC to BLE
+        (bufset-u16 tx-frame 5 0x6400) ; Packet is from ESC to BLE
+        (def uart-buf (array-create 64))
 
-; Spawn UART reading frames thread
-(spawn 150 read-frames)
-(button-logic) ; Start button logic in main thread - this will block the main thread
+        (if (= software-adc 1)
+            (app-adc-detach 3 1)
+            (app-adc-detach 3 0)
+        )
+
+        ; Apply mode on start-up
+        (apply-mode)
+
+        ; Spawn UART reading frames thread
+        (spawn 150 read-frames)
+        (button-logic) ; Start button logic in main thread - this will block the main thread
+})
+
+(image-save)
+(main)
