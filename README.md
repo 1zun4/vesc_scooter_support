@@ -11,7 +11,7 @@ Read one of the guides below to get started.
 ## Which version should I use?
 
 If you are running **VESC 7.00**, use these:
-- **M365**: https://github.com/1zun4/vesc_scooter_support/blob/main/g30_dash.lisp
+- **M365**: https://github.com/1zun4/vesc_scooter_support/blob/main/m365_dash.lisp
 - **G30**: https://github.com/1zun4/vesc_scooter_support/blob/main/g30_dash.lisp
 - **How-To** Video: https://www.youtube.com/watch?v=kX8PsaxfoXQ
 
