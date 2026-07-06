@@ -1,0 +1,128 @@
+name: Build VESC Scooter Support Package
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-vescpkg-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VESC_TOOL_BRANCH: release_7_00
+  VESC_TOOL_DIR: tools/vesc_tool
+
+jobs:
+  build:
+    name: Build vesc_scooter_support.vescpkg
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare runtime paths
+        run: |
+          echo "XDG_RUNTIME_DIR=${RUNNER_TEMP}/xdg-runtime" >> "$GITHUB_ENV"
+          echo "XDG_DATA_HOME=${RUNNER_TEMP}/xdg-data" >> "$GITHUB_ENV"
+
+      - name: Resolve VESC Tool branch SHA
+        id: vesc_tool_ref
+        run: |
+          echo "sha=$(git ls-remote https://github.com/vedderb/vesc_tool refs/heads/${VESC_TOOL_BRANCH} | awk '{print $1}')" >> "$GITHUB_OUTPUT"
+
+      - name: Restore cached VESC Tool binary
+        id: vesc_tool
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.VESC_TOOL_DIR }}/bin/vesc_tool
+            ${{ env.VESC_TOOL_DIR }}/upstream-sha.txt
+          key: ${{ runner.os }}-vesc-tool-${{ env.VESC_TOOL_BRANCH }}-${{ steps.vesc_tool_ref.outputs.sha }}-${{ hashFiles('.github/workflows/build-vescpkg.yml') }}
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            git \
+            libasound2-dev \
+            libegl1-mesa-dev \
+            libgl1-mesa-dev \
+            libglu1-mesa-dev \
+            libqt5gamepad5-dev \
+            libqt5opengl5-dev \
+            libqt5serialbus5-dev \
+            libqt5serialport5-dev \
+            libqt5svg5-dev \
+            libudev-dev \
+            libusb-dev \
+            libx11-xcb-dev \
+            libxcb-xinerama0 \
+            libxcb-xinerama0-dev \
+            qml-module-qt-labs-folderlistmodel \
+            qml-module-qt-labs-platform \
+            qml-module-qt-labs-settings \
+            qml-module-qtgraphicaleffects \
+            qml-module-qtquick-controls \
+            qml-module-qtquick-controls2 \
+            qml-module-qtquick-layouts \
+            qml-module-qtquick-window2 \
+            qml-module-qtquick2 \
+            qt3d5-dev \
+            qt5-qmake \
+            qtbase5-dev \
+            qtbase5-dev-tools \
+            qtbase5-private-dev \
+            qtconnectivity5-dev \
+            qtdeclarative5-dev \
+            qtlocation5-dev \
+            qtmultimedia5-dev \
+            qtpositioning5-dev \
+            qtquickcontrols2-5-dev \
+            qttools5-dev-tools
+
+      - name: Build VESC Tool
+        if: steps.vesc_tool.outputs.cache-hit != 'true'
+        run: |
+          rm -rf "$RUNNER_TEMP/vesc_tool"
+          git clone --branch "$VESC_TOOL_BRANCH" --depth 1 https://github.com/vedderb/vesc_tool "$RUNNER_TEMP/vesc_tool"
+          cd "$RUNNER_TEMP/vesc_tool"
+          qmake -config release "CONFIG += release_lin build_original exclude_fw"
+          make -j"$(nproc)"
+
+          tool_path="$(find build/lin -maxdepth 1 -type f -name 'vesc_tool_*' | head -n 1)"
+          if [ -z "$tool_path" ]; then
+            echo "No built vesc_tool binary found in build/lin" >&2
+            exit 1
+          fi
+
+          mkdir -p "$GITHUB_WORKSPACE/$VESC_TOOL_DIR/bin"
+          cp "$tool_path" "$GITHUB_WORKSPACE/$VESC_TOOL_DIR/bin/vesc_tool"
+          chmod +x "$GITHUB_WORKSPACE/$VESC_TOOL_DIR/bin/vesc_tool"
+          printf '%s\n' '${{ steps.vesc_tool_ref.outputs.sha }}' > "$GITHUB_WORKSPACE/$VESC_TOOL_DIR/upstream-sha.txt"
+
+      - name: Download package archive
+        run: |
+          mkdir -p "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          chmod +x "$VESC_TOOL_DIR/bin/vesc_tool"
+          export PATH="$PWD/$VESC_TOOL_DIR/bin:$PATH"
+
+          vesc_tool --offscreen --downloadPackageArchive
+
+      - name: Build VESC package
+        run: |
+          mkdir -p "$XDG_RUNTIME_DIR" "$XDG_DATA_HOME"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          chmod +x "$VESC_TOOL_DIR/bin/vesc_tool"
+          export PATH="$PWD/$VESC_TOOL_DIR/bin:$PATH"
+          QT_QPA_PLATFORM=offscreen make clean all
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vesc-scooter-support-${{ github.sha }}
+          if-no-files-found: error
+          path: vesc_scooter_support.vescpkg
