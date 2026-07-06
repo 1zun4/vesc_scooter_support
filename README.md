@@ -2,7 +2,7 @@
 Allows you to connect a Xiaomi or Ninebot display to a VESC controller.
 
 ## Installation
-Install this package, then pick your model in the package UI (VESC Tool -> VESC Packages).
+Install this package, then pick your model in the app UI (VESC Tool -> Navigation Bar -> App UI).
 Read one of the guides below to get started.
 
 - [DE Guide](/guide/DE.md)
