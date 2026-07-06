@@ -1,4 +1,4 @@
-; VESC Scooter Support lisp script v3.0 by Izuna, AKA13 and Netzpfuscher
+; VESC Scooter Support lisp script v2.0 by Izuna, AKA13 and Netzpfuscher
 ; Supports G30 (Ninebot), M365/1S/PRO2 (Xiaomi) dashboards and Slave ESCs - model is set in the package UI
 ; Tested with VESC 7.00 on Spintend Ubox Single 85 200
 
