@@ -42,8 +42,8 @@ Item {
     function saveAllSettings() {
         sendCode("(save-general-settings "
             + boolAtom(softwareAdc)
-            + " " + readReal(minAdcThrottle, 2)
-            + " " + readReal(minAdcBrake, 2)
+            + " " + minAdcThrottle.value.toFixed(2)
+            + " " + minAdcBrake.value.toFixed(2)
             + " " + boolAtom(showBatteryInIdle)
             + " " + readReal(minSpeed, 1)
             + ")")
@@ -111,8 +111,8 @@ Item {
             modelBox.currentIndex = loadedModel
         } else if (parts[0] === "general") {
             softwareAdc.checked = parseBoolToken(parts[1])
-            setReal(minAdcThrottle, parts[2], 2)
-            setReal(minAdcBrake, parts[3], 2)
+            minAdcThrottle.value = Number.parseFloat(parts[2]) || 0
+            minAdcBrake.value = Number.parseFloat(parts[3]) || 0
             showBatteryInIdle.checked = parseBoolToken(parts[4])
             setReal(minSpeed, parts[5], 1)
         } else if (parts[0] === "temps") {
@@ -250,10 +250,18 @@ Item {
                             }
 
                             Label { text: "Min Throttle ADC" }
-                            TextField { id: minAdcThrottle; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3.3; decimals: 2 } }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Slider { id: minAdcThrottle; Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.01; snapMode: Slider.SnapAlways }
+                                Label { text: minAdcThrottle.value.toFixed(2); Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
+                            }
 
                             Label { text: "Min Brake ADC" }
-                            TextField { id: minAdcBrake; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3.3; decimals: 2 } }
+                            RowLayout {
+                                Layout.fillWidth: true
+                                Slider { id: minAdcBrake; Layout.fillWidth: true; from: 0.0; to: 1.0; stepSize: 0.01; snapMode: Slider.SnapAlways }
+                                Label { text: minAdcBrake.value.toFixed(2); Layout.preferredWidth: 32; horizontalAlignment: Text.AlignRight }
+                            }
 
                             CheckBox {
                                 id: showBatteryInIdle
