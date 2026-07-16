@@ -24,6 +24,19 @@ Item {
         return token === "true" || token === "1"
     }
 
+    // Lever combo codes: 0=brake+throttle, 1=brake only, 2=throttle only, 3=none
+    function comboFromBoxes(brakeBox, throttleBox) {
+        if (brakeBox.checked && throttleBox.checked) return 0
+        if (brakeBox.checked) return 1
+        if (throttleBox.checked) return 2
+        return 3
+    }
+
+    function setBoxesFromCombo(combo, brakeBox, throttleBox) {
+        brakeBox.checked = (combo === 0 || combo === 1)
+        throttleBox.checked = (combo === 0 || combo === 2)
+    }
+
     function readReal(field, decimals) {
         var number = Number.parseFloat(field.text)
         if (!Number.isFinite(number)) {
@@ -82,6 +95,25 @@ Item {
             + " " + readReal(secretSportCurrent, 2)
             + " " + readReal(secretSportWatts, 0)
             + " " + readReal(secretSportFw, 1)
+            + ")")
+
+        sendCode("(save-apply-settings "
+            + boolAtom(applySpeed)
+            + " " + boolAtom(applyCurrent)
+            + " " + boolAtom(applyWatts)
+            + " " + boolAtom(applyFw)
+            + " " + boolAtom(secretApplySpeed)
+            + " " + boolAtom(secretApplyCurrent)
+            + " " + boolAtom(secretApplyWatts)
+            + " " + boolAtom(secretApplyFw)
+            + ")")
+
+        sendCode("(save-gesture-settings "
+            + secretPresses.value
+            + " " + comboFromBoxes(secretBrake, secretThrottle)
+            + " " + boolAtom(secretRequiresLock)
+            + " " + lockPresses.value
+            + " " + comboFromBoxes(lockBrake, lockThrottle)
             + ")")
 
         sendCode("(save-alarm-settings "
@@ -145,6 +177,23 @@ Item {
             setReal(secretSportCurrent, parts[11], 2)
             setReal(secretSportWatts, parts[12], 0)
             setReal(secretSportFw, parts[13], 1)
+        } else if (parts[0] === "apply") {
+            applySpeed.checked = parseBoolToken(parts[1])
+            applyCurrent.checked = parseBoolToken(parts[2])
+            applyWatts.checked = parseBoolToken(parts[3])
+            applyFw.checked = parseBoolToken(parts[4])
+            secretApplySpeed.checked = parseBoolToken(parts[5])
+            secretApplyCurrent.checked = parseBoolToken(parts[6])
+            secretApplyWatts.checked = parseBoolToken(parts[7])
+            secretApplyFw.checked = parseBoolToken(parts[8])
+        } else if (parts[0] === "gesture") {
+            var sp = Number.parseInt(parts[1])
+            secretPresses.value = Number.isNaN(sp) ? 2 : sp
+            setBoxesFromCombo(Number.parseInt(parts[2]) || 0, secretBrake, secretThrottle)
+            secretRequiresLock.checked = parseBoolToken(parts[3])
+            var lp = Number.parseInt(parts[4])
+            lockPresses.value = Number.isNaN(lp) ? 2 : lp
+            setBoxesFromCombo(Number.parseInt(parts[5]) || 0, lockBrake, lockThrottle)
         } else if (parts[0] === "alarm") {
             alarmTone.checked = parseBoolToken(parts[1])
             setReal(alarmSpeedThreshold, parts[2], 1)
@@ -184,7 +233,7 @@ Item {
             implicitWidth: 0
             clip: true
 
-            property int buttons: 4
+            property int buttons: 3
             property int buttonWidth: 90
 
             TabButton {
@@ -193,10 +242,6 @@ Item {
             }
             TabButton {
                 text: "Modes"
-                width: Math.max(tabBar.buttonWidth, tabBar.width / tabBar.buttons)
-            }
-            TabButton {
-                text: "Secret"
                 width: Math.max(tabBar.buttonWidth, tabBar.width / tabBar.buttons)
             }
             TabButton {
@@ -277,6 +322,16 @@ Item {
 
                             Label { text: "FET Temp Warning (°C)" }
                             TextField { id: tempWarningFet; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 200.0; decimals: 1 } }
+
+                            RowLayout {
+                                Layout.columnSpan: 2
+                                Layout.fillWidth: true
+                                Label { text: "Lock:" }
+                                CheckBox { id: lockBrake; text: "Brake"; checked: true }
+                                CheckBox { id: lockThrottle; text: "Throttle" }
+                                SpinBox { id: lockPresses; from: 0; to: 5; Layout.preferredWidth: 110 }
+                                Label { text: "presses (0=off)" }
+                            }
                         }
                     }
                 }
@@ -301,77 +356,59 @@ Item {
                         Label { text: "Drive"; font.bold: true; Layout.fillWidth: true }
                         Label { text: "Sport"; font.bold: true; Layout.fillWidth: true }
 
-                        Label { text: "Speed (km/h)" }
-                        TextField { id: ecoSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
-                        TextField { id: driveSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
-                        TextField { id: sportSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
+                        CheckBox { id: applySpeed; text: "Speed (km/h)"; checked: true }
+                        TextField { id: ecoSpeed; enabled: applySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
+                        TextField { id: driveSpeed; enabled: applySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
+                        TextField { id: sportSpeed; enabled: applySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
 
-                        Label { text: "Current Scale" }
-                        TextField { id: ecoCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
-                        TextField { id: driveCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
-                        TextField { id: sportCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
+                        CheckBox { id: applyCurrent; text: "Current Scale"; checked: true }
+                        TextField { id: ecoCurrent; enabled: applyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
+                        TextField { id: driveCurrent; enabled: applyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
+                        TextField { id: sportCurrent; enabled: applyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
 
-                        Label { text: "Watts" }
-                        TextField { id: ecoWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
-                        TextField { id: driveWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
-                        TextField { id: sportWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
+                        CheckBox { id: applyWatts; text: "Watts"; checked: true }
+                        TextField { id: ecoWatts; enabled: applyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
+                        TextField { id: driveWatts; enabled: applyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
+                        TextField { id: sportWatts; enabled: applyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
 
-                        Label { text: "Field Weakening" }
-                        TextField { id: ecoFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
-                        TextField { id: driveFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
-                        TextField { id: sportFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
-                    }
-                }
-            }
+                        CheckBox { id: applyFw; text: "Field Weakening"; checked: true }
+                        TextField { id: ecoFw; enabled: applyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+                        TextField { id: driveFw; enabled: applyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+                        TextField { id: sportFw; enabled: applyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
 
-            Page {
-                enabled: !isSlave
+                        CheckBox { id: secretEnabled; text: "Secret Modes"; Layout.columnSpan: 4; font.bold: true }
 
-                ScrollView {
-                    anchors.fill: parent
-                    contentWidth: availableWidth
-                    clip: true
+                        CheckBox { id: secretApplySpeed; text: "Speed (km/h)"; checked: true }
+                        TextField { id: secretEcoSpeed; enabled: secretApplySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
+                        TextField { id: secretDriveSpeed; enabled: secretApplySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 400.0; decimals: 1 } }
+                        TextField { id: secretSportSpeed; enabled: secretApplySpeed.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 1000.0; decimals: 1 } }
 
-                    ColumnLayout {
-                        width: parent.width
-                        spacing: 4
+                        CheckBox { id: secretApplyCurrent; text: "Current Scale"; checked: true }
+                        TextField { id: secretEcoCurrent; enabled: secretApplyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
+                        TextField { id: secretDriveCurrent; enabled: secretApplyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
+                        TextField { id: secretSportCurrent; enabled: secretApplyCurrent.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
 
-                        CheckBox {
-                            id: secretEnabled
-                            text: "Enabled"
-                        }
+                        CheckBox { id: secretApplyWatts; text: "Watts"; checked: true }
+                        TextField { id: secretEcoWatts; enabled: secretApplyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
+                        TextField { id: secretDriveWatts; enabled: secretApplyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
+                        TextField { id: secretSportWatts; enabled: secretApplyWatts.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
 
-                        GridLayout {
+                        CheckBox { id: secretApplyFw; text: "Field Weakening"; checked: true }
+                        TextField { id: secretEcoFw; enabled: secretApplyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+                        TextField { id: secretDriveFw; enabled: secretApplyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+                        TextField { id: secretSportFw; enabled: secretApplyFw.checked; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+
+                        RowLayout {
+                            Layout.columnSpan: 4
                             Layout.fillWidth: true
-                            columns: 4
-                            rowSpacing: 4
-                            columnSpacing: 6
-
-                            Item { Layout.fillWidth: true }
-                            Label { text: "Eco"; font.bold: true; Layout.fillWidth: true }
-                            Label { text: "Drive"; font.bold: true; Layout.fillWidth: true }
-                            Label { text: "Sport"; font.bold: true; Layout.fillWidth: true }
-
-                            Label { text: "Speed (km/h)" }
-                            TextField { id: secretEcoSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
-                            TextField { id: secretDriveSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 400.0; decimals: 1 } }
-                            TextField { id: secretSportSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 1000.0; decimals: 1 } }
-
-                            Label { text: "Current Scale" }
-                            TextField { id: secretEcoCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
-                            TextField { id: secretDriveCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
-                            TextField { id: secretSportCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
-
-                            Label { text: "Watts" }
-                            TextField { id: secretEcoWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
-                            TextField { id: secretDriveWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
-                            TextField { id: secretSportWatts; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 3000000.0; decimals: 0 } }
-
-                            Label { text: "Field Weakening" }
-                            TextField { id: secretEcoFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
-                            TextField { id: secretDriveFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
-                            TextField { id: secretSportFw; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 100.0; decimals: 1 } }
+                            Label { text: "Secret:" }
+                            CheckBox { id: secretBrake; text: "Brake"; checked: true }
+                            CheckBox { id: secretThrottle; text: "Throttle"; checked: true }
+                            SpinBox { id: secretPresses; from: 0; to: 5; Layout.preferredWidth: 110 }
+                            Label { text: "presses (0=off)" }
                         }
+
+                        CheckBox { id: secretRequiresLock; text: "Only while locked"; Layout.columnSpan: 4 }
                     }
                 }
             }
@@ -443,6 +480,8 @@ Item {
                     || message.startsWith("temps ")
                     || message.startsWith("modes ")
                     || message.startsWith("secret ")
+                    || message.startsWith("apply ")
+                    || message.startsWith("gesture ")
                     || message.startsWith("alarm ")) {
                 applySettingsLine(message)
             } else if (message === "model-ok") {

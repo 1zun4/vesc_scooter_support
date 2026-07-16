@@ -51,11 +51,32 @@
 (def secret-sport-watts 1500000)
 (def secret-sport-fw 10)
 
+; Per-parameter apply toggles - a disabled parameter is never written to the motor config
+(def apply-speed true)
+(def apply-current true)
+(def apply-watts true)
+(def apply-fw true)
+
+; Secret modes gate each parameter separately
+(def secret-apply-speed true)
+(def secret-apply-current true)
+(def secret-apply-watts true)
+(def secret-apply-fw true)
+
+; Button gestures (combo: 0=brake+throttle, 1=brake only, 2=throttle only)
+(def secret-presses 2)
+(def secret-combo 0)
+(def secret-requires-lock false) ; secret gesture only works while locked
+(def lock-presses 2)
+(def lock-combo 1)
+
 ; -> Code starts here (DO NOT CHANGE ANYTHING BELOW THIS LINE IF YOU DON'T KNOW WHAT YOU ARE DOING)
 
-; Load VESC CAN code serer
+; Load VESC CAN code server - const block so the library code lives in flash, not heap
+@const-start
 (import "pkg@://vesc_packages/lib_code_server/code_server.vescpkg" 'code-server)
 (read-eval-program code-server)
+@const-end
 
 ; Model (0=G30, 1=M365/1S/PRO2, 2=Slave)
 (def model 0)
@@ -83,9 +104,17 @@
 ; sound feedback
 (def feedback 0)
 
+; dash link watchdog: last time a throttle frame was received
+(def last-rx (systime))
+
+; cached telemetry - refreshed at ~16 Hz by the button thread so the
+; per-frame dash reply doesn't run CAN queries and allocations itself
+(def cur-speed-kmh 0.0)
+(def cur-batt 0.0)
+
 @const-start
 
-(def settings-version 300i32)
+(def settings-version 303i32)
 
 ; Persistent settings: (label . (eeprom-offset type))
 (def eeprom-addrs '(
@@ -127,6 +156,19 @@
     (secret-sport-watts    . (35 f))
     (secret-sport-fw       . (36 f))
     (model                 . (37 i))
+    (apply-speed           . (38 b))
+    (apply-current         . (39 b))
+    (apply-watts           . (40 b))
+    (apply-fw              . (41 b))
+    (secret-presses        . (42 i))
+    (secret-combo          . (43 i))
+    (secret-requires-lock  . (44 b))
+    (lock-presses          . (45 i))
+    (lock-combo            . (46 i))
+    (secret-apply-fw       . (47 b))
+    (secret-apply-speed    . (48 b))
+    (secret-apply-current  . (49 b))
+    (secret-apply-watts    . (50 b))
 ))
 
 (def last-button-state false)
@@ -155,6 +197,30 @@
 
 (defun valid-model (m) ; eeprom reads nil when never written
     (and (not (eq m nil)) (>= m 0) (<= m 2))
+)
+
+(defun write-secret-mode-toggles () ; settings added in v303
+    {
+        (write-setting 'secret-apply-speed true)
+        (write-setting 'secret-apply-current true)
+        (write-setting 'secret-apply-watts true)
+    }
+)
+
+(defun restore-gesture-apply-defaults () ; settings added in v301+
+    {
+        (write-setting 'apply-speed true)
+        (write-setting 'apply-current true)
+        (write-setting 'apply-watts true)
+        (write-setting 'apply-fw true)
+        (write-setting 'secret-apply-fw true)
+        (write-secret-mode-toggles)
+        (write-setting 'secret-presses 2)
+        (write-setting 'secret-combo 0)
+        (write-setting 'secret-requires-lock false)
+        (write-setting 'lock-presses 2)
+        (write-setting 'lock-combo 1)
+    }
 )
 
 (defun restore-defaults ()
@@ -196,6 +262,7 @@
         (write-setting 'secret-sport-current 1.0)
         (write-setting 'secret-sport-watts 1500000.0)
         (write-setting 'secret-sport-fw 10.0)
+        (restore-gesture-apply-defaults)
         (write-setting 'model (if (valid-model cur-model) cur-model 0))
         (write-setting 'ver-code settings-version)
     }
@@ -203,8 +270,24 @@
 
 (defun load-settings ()
     {
-        (if (not-eq (read-setting 'ver-code) settings-version)
-            (restore-defaults)
+        (var ver (read-setting 'ver-code))
+        (if (not-eq ver settings-version)
+            (cond
+                ((eq ver 300i32) { ; upgrades only write the added settings, everything else is kept
+                    (restore-gesture-apply-defaults)
+                    (write-setting 'ver-code settings-version)
+                })
+                ((eq ver 301i32) {
+                    (write-setting 'secret-apply-fw true)
+                    (write-secret-mode-toggles)
+                    (write-setting 'ver-code settings-version)
+                })
+                ((eq ver 302i32) {
+                    (write-secret-mode-toggles)
+                    (write-setting 'ver-code settings-version)
+                })
+                (t (restore-defaults))
+            )
         )
 
         (set 'software-adc (read-setting 'software-adc))
@@ -243,6 +326,19 @@
         (set 'secret-sport-current (read-setting 'secret-sport-current))
         (set 'secret-sport-watts (read-setting 'secret-sport-watts))
         (set 'secret-sport-fw (read-setting 'secret-sport-fw))
+        (set 'apply-speed (read-setting 'apply-speed))
+        (set 'apply-current (read-setting 'apply-current))
+        (set 'apply-watts (read-setting 'apply-watts))
+        (set 'apply-fw (read-setting 'apply-fw))
+        (set 'secret-apply-fw (read-setting 'secret-apply-fw))
+        (set 'secret-apply-speed (read-setting 'secret-apply-speed))
+        (set 'secret-apply-current (read-setting 'secret-apply-current))
+        (set 'secret-apply-watts (read-setting 'secret-apply-watts))
+        (set 'secret-presses (read-setting 'secret-presses))
+        (set 'secret-combo (read-setting 'secret-combo))
+        (set 'secret-requires-lock (read-setting 'secret-requires-lock))
+        (set 'lock-presses (read-setting 'lock-presses))
+        (set 'lock-combo (read-setting 'lock-combo))
 
         (var m (read-setting 'model))
         (if (not (valid-model m)) {
@@ -329,6 +425,29 @@
     }
 )
 
+(defun save-apply-settings (speed current watts fw s-speed s-current s-watts s-fw)
+    {
+        (write-setting 'apply-speed speed)
+        (write-setting 'apply-current current)
+        (write-setting 'apply-watts watts)
+        (write-setting 'apply-fw fw)
+        (write-setting 'secret-apply-speed s-speed)
+        (write-setting 'secret-apply-current s-current)
+        (write-setting 'secret-apply-watts s-watts)
+        (write-setting 'secret-apply-fw s-fw)
+    }
+)
+
+(defun save-gesture-settings (s-presses s-combo s-locked l-presses l-combo)
+    {
+        (write-setting 'secret-presses s-presses)
+        (write-setting 'secret-combo s-combo)
+        (write-setting 'secret-requires-lock s-locked)
+        (write-setting 'lock-presses l-presses)
+        (write-setting 'lock-combo l-combo)
+    }
+)
+
 (defun save-alarm-settings (tone speed-threshold gyro-threshold voltage)
     {
         (write-setting 'alarm-tone tone)
@@ -412,6 +531,25 @@
             (str-from-n (read-setting 'secret-sport-fw) "%.1f")
         ))
         (send-data (str-merge
+            "apply "
+            (if (read-setting 'apply-speed) "true " "false ")
+            (if (read-setting 'apply-current) "true " "false ")
+            (if (read-setting 'apply-watts) "true " "false ")
+            (if (read-setting 'apply-fw) "true " "false ")
+            (if (read-setting 'secret-apply-speed) "true " "false ")
+            (if (read-setting 'secret-apply-current) "true " "false ")
+            (if (read-setting 'secret-apply-watts) "true " "false ")
+            (if (read-setting 'secret-apply-fw) "true" "false")
+        ))
+        (send-data (str-merge
+            "gesture "
+            (str-from-n (read-setting 'secret-presses) "%d ")
+            (str-from-n (read-setting 'secret-combo) "%d ")
+            (if (read-setting 'secret-requires-lock) "true " "false ")
+            (str-from-n (read-setting 'lock-presses) "%d ")
+            (str-from-n (read-setting 'lock-combo) "%d")
+        ))
+        (send-data (str-merge
             "alarm "
             (if (read-setting 'alarm-tone) "true " "false ")
             (str-from-n (read-setting 'alarm-speed-threshold) "%.1f ")
@@ -430,8 +568,11 @@
 
 @const-end
 
+@const-start
+
 (defun adc-input(buffer) ; Frame 0x65
     {
+        (set 'last-rx (systime)) ; feed the dash link watchdog
         (let ((throttle (/(bufget-u8 uart-buf thr-idx) 77.2)) ; 255/3.3 = 77.2
             (brake (/(bufget-u8 uart-buf brk-idx) 77.2)))
             {
@@ -454,7 +595,18 @@
 
 (defun handle-features()
     {
-        (var current-speed (* (get-lowest-speed) 3.6))
+        (set 'cur-speed-kmh (* (get-lowest-speed) 3.6))
+        (set 'cur-batt (* (get-batt) 100))
+        (var current-speed cur-speed-kmh)
+
+        ; Dash link watchdog: release the ADC overrides when throttle frames stop
+        ; coming, otherwise the last (possibly full) throttle value stays applied
+        (if (and software-adc (> (secs-since last-rx) 0.5))
+            {
+                (app-adc-override 0 0)
+                (app-adc-override 1 0)
+            }
+        )
 
         (if (or off lock (< current-speed min-speed))
             (if (not (app-is-output-disabled)) ; Disable output when scooter is turned off
@@ -480,8 +632,8 @@
 
 (defun update-dash(buffer) ; Frame 0x64
     {
-        (var current-speed (abs (* (get-lowest-speed) 3.6)))
-        (var battery (*(get-batt) 100))
+        (var current-speed (abs cur-speed-kmh))
+        (var battery cur-batt)
         (var crc-end (- (buflen tx-frame) 2)) ; crc bytes at end of frame
 
         ; mode field (1=drive, 2=eco, 4=sport, 8=charge, 16=off, 32=lock)
@@ -552,28 +704,32 @@
 )
 
 (defun read-frames-g30()
-    (loopwhile t
-        {
-            (uart-read-bytes uart-buf 3 0)
-            (if (= (bufget-u16 uart-buf 0) 0x5aa5)
+    (loopwhile t {
+        (trap ; a parse error must not kill the reader thread
+            (loopwhile t
                 {
-                    (var len (bufget-u8 uart-buf 2))
-                    (var crc len)
-                    (if (and (> len 0) (< len 60)) ; max 64 bytes
+                    (uart-read-bytes uart-buf 3 0)
+                    (if (= (bufget-u16 uart-buf 0) 0x5aa5)
                         {
-                            (uart-read-bytes uart-buf (+ len 6) 0) ;read remaining 6 bytes + payload, overwrite buffer
-
-                            (let ((code (bufget-u8 uart-buf 2)) (checksum (bufget-u16 uart-buf (+ len 4))))
+                            (var len (bufget-u8 uart-buf 2))
+                            (var crc len)
+                            (if (and (> len 0) (< len 59)) ; len+6 must fit the 64 byte buffer
                                 {
-                                    (looprange i 0 (+ len 4) (set 'crc (+ crc (bufget-u8 uart-buf i))))
+                                    (uart-read-bytes uart-buf (+ len 6) 0) ;read remaining 6 bytes + payload, overwrite buffer
 
-                                    (if (= checksum (bitwise-and (+ (shr (bitwise-xor crc 0xFFFF) 8) (shl (bitwise-xor crc 0xFFFF) 8)) 65535)) ;If the calculated checksum matches with sent checksum, forward comman
+                                    (let ((code (bufget-u8 uart-buf 2)) (checksum (bufget-u16 uart-buf (+ len 4))))
                                         {
-                                            (if (and (= code 0x65) software-adc)
-                                                (adc-input uart-buf)
-                                            )
-                                            (if (= code 0x64) ; dash reply only on 0x64
-                                                (update-dash uart-buf)
+                                            (looprange i 0 (+ len 4) (set 'crc (+ crc (bufget-u8 uart-buf i))))
+
+                                            (if (= checksum (bitwise-and (+ (shr (bitwise-xor crc 0xFFFF) 8) (shl (bitwise-xor crc 0xFFFF) 8)) 65535)) ;If the calculated checksum matches with sent checksum, forward comman
+                                                {
+                                                    (if (and (= code 0x65) software-adc (>= len 3)) ; frame must actually carry the throttle/brake bytes
+                                                        (adc-input uart-buf)
+                                                    )
+                                                    (if (= code 0x64) ; dash reply only on 0x64
+                                                        (update-dash uart-buf)
+                                                    )
+                                                }
                                             )
                                         }
                                     )
@@ -583,91 +739,111 @@
                     )
                 }
             )
-        }
-    )
+        )
+        (sleep 0.1) ; only reached after an error
+    })
 )
 
 (defun read-frames-m365()
-    (loopwhile t
-        {
-            (uart-read-bytes uart-buf 3 0)
-            (if (= (bufget-u16 uart-buf 0) 0x55aa)
+    (loopwhile t {
+        (trap ; a parse error must not kill the reader thread
+            (loopwhile t
                 {
-                    (var len (bufget-u8 uart-buf 2))
-                    (var crc len)
-                    (if (and (> len 0) (< len 60)) ; max 64 bytes
+                    (uart-read-bytes uart-buf 3 0)
+                    (if (= (bufget-u16 uart-buf 0) 0x55aa)
                         {
-                            (uart-read-bytes uart-buf (+ len 4) 0)
-                            (looprange i 0 len
-                                (set 'crc (+ crc (bufget-u8 uart-buf i))))
-                            (if (=(+(shl(bufget-u8 uart-buf (+ len 2))8) (bufget-u8 uart-buf (+ len 1))) (bitwise-xor crc 0xFFFF))
+                            (var len (bufget-u8 uart-buf 2))
+                            (var crc len)
+                            (if (and (> len 0) (< len 60)) ; max 64 bytes
                                 {
-                                    (if (and (= (bufget-u8 uart-buf 1) 0x65) software-adc)
-                                        (adc-input uart-buf)
+                                    (uart-read-bytes uart-buf (+ len 4) 0)
+                                    (looprange i 0 len
+                                        (set 'crc (+ crc (bufget-u8 uart-buf i))))
+                                    (if (=(+(shl(bufget-u8 uart-buf (+ len 2))8) (bufget-u8 uart-buf (+ len 1))) (bitwise-xor crc 0xFFFF))
+                                        {
+                                            (if (and (= (bufget-u8 uart-buf 1) 0x65) software-adc (>= len 2)) ; frame must actually carry the throttle/brake bytes
+                                                (adc-input uart-buf)
+                                            )
+                                            (update-dash uart-buf) ; dash expects a reply on every frame
+                                        }
                                     )
-                                    (update-dash uart-buf) ; dash expects a reply on every frame
                                 }
                             )
                         }
                     )
                 }
             )
-        }
+        )
+        (sleep 0.1) ; only reached after an error
+    })
+)
+
+(defun combo-held(combo thr brk) ; exclusive lever matching
+    (cond
+        ((= combo 0) (and (> brk min-adc-brake) (> thr min-adc-throttle)))
+        ((= combo 1) (and (> brk min-adc-brake) (<= thr min-adc-throttle)))
+        ((= combo 2) (and (> thr min-adc-throttle) (<= brk min-adc-brake)))
+        ((= combo 3) (and (<= brk min-adc-brake) (<= thr min-adc-throttle))) ; no levers
     )
 )
 
 (defun handle-button()
-    (if (= presses 1) ; single press
-        (if off ; is it off? turn on scooter again
-            {
-                (set 'off false) ; turn on
-                (set 'feedback 1) ; beep feedback
-                (set 'unlock false) ; Disable unlock on turn off
-                (apply-mode) ; Apply mode on start-up
-                (stats-reset) ; reset stats when turning on
-            }
-            (if lock ; is it locked?
-                (set 'feedback 1) ; beep feedback
-                (set 'light (not light)) ; toggle light
+    {
+        (var thr (get-adc-decoded 0))
+        (var brk (get-adc-decoded 1))
+        (cond
+            ((and off (= presses 1)) ; power on always wins when off
+                {
+                    (set 'off false) ; turn on
+                    (set 'feedback 1) ; beep feedback
+                    (set 'unlock false) ; Disable unlock on turn off
+                    (apply-mode) ; Apply mode on start-up
+                    (stats-reset) ; reset stats when turning on
+                }
             )
-
-        )
-        (if (>= presses 2) ; double press
-            {
-                (if (> (get-adc-decoded 1) min-adc-brake) ; if brake is pressed
-                    (if (and secret-enabled (> (get-adc-decoded 0) min-adc-throttle))
-                        {
-                            (set 'unlock (not unlock))
-                            (set 'feedback 2) ; beep 2x
-                            (apply-mode)
-                        }
-                        {
-                            (set 'unlock false)
-                            (apply-mode)
-                            (set 'lock (not lock)) ; lock on or off
-                            (set 'light false) ; turn off light when locking
-                            (set 'feedback 1) ; beep feedback
-                            (if (not lock)
-                                (stop-alarm)
-                            )
-                        }
+            ((and secret-enabled
+                    (> secret-presses 0) ; 0 = gesture disabled
+                    (= presses secret-presses)
+                    (combo-held secret-combo thr brk)
+                    (or (not secret-requires-lock) lock))
+                {
+                    (set 'unlock (not unlock))
+                    (set 'feedback 2) ; beep 2x
+                    (apply-mode)
+                }
+            )
+            ((and (> lock-presses 0) ; 0 = gesture disabled
+                    (= presses lock-presses)
+                    (combo-held lock-combo thr brk))
+                {
+                    (set 'lock (not lock)) ; lock on or off
+                    (if lock (set 'unlock false)) ; locking always leaves secret mode, unlocking keeps it
+                    (apply-mode)
+                    (set 'light false) ; turn off light when locking
+                    (set 'feedback 1) ; beep feedback
+                    (if (not lock)
+                        (stop-alarm)
                     )
-                    {
-                        (if (not lock)
-                            {
-                                (cond
-                                    ((= speedmode 1) (set 'speedmode 4))
-                                    ((= speedmode 2) (set 'speedmode 1))
-                                    ((= speedmode 4) (set 'speedmode 2))
-                                )
-                                (apply-mode)
-                            }
-                        )
-                    }
+                }
+            )
+            ((= presses 1) ; single press: beep when locked, toggle light otherwise
+                (if lock
+                    (set 'feedback 1)
+                    (set 'light (not light))
                 )
-            }
+            )
+            ((and (>= presses 2) (not lock) (<= thr min-adc-throttle) (<= brk min-adc-brake)) ; mode cycle needs released levers
+                {
+                    (cond
+                        ((= speedmode 1) (set 'speedmode 4))
+                        ((= speedmode 2) (set 'speedmode 1))
+                        ((= speedmode 4) (set 'speedmode 2))
+                    )
+                    (apply-mode)
+                }
+            )
         )
-    )
+    }
 )
 
 (defun handle-holding-button()
@@ -695,24 +871,24 @@
 (defun apply-mode()
     (if (not unlock)
         (cond
-            ((= speedmode 1) (configure-speed drive-speed drive-watts drive-current drive-fw))
-            ((= speedmode 2) (configure-speed eco-speed eco-watts eco-current eco-fw))
-            ((= speedmode 4) (configure-speed sport-speed sport-watts sport-current sport-fw))
+            ((= speedmode 1) (configure-speed drive-speed drive-watts drive-current drive-fw false))
+            ((= speedmode 2) (configure-speed eco-speed eco-watts eco-current eco-fw false))
+            ((= speedmode 4) (configure-speed sport-speed sport-watts sport-current sport-fw false))
         )
         (cond
-            ((= speedmode 1) (configure-speed secret-drive-speed secret-drive-watts secret-drive-current secret-drive-fw))
-            ((= speedmode 2) (configure-speed secret-eco-speed secret-eco-watts secret-eco-current secret-eco-fw))
-            ((= speedmode 4) (configure-speed secret-sport-speed secret-sport-watts secret-sport-current secret-sport-fw))
+            ((= speedmode 1) (configure-speed secret-drive-speed secret-drive-watts secret-drive-current secret-drive-fw true))
+            ((= speedmode 2) (configure-speed secret-eco-speed secret-eco-watts secret-eco-current secret-eco-fw true))
+            ((= speedmode 4) (configure-speed secret-sport-speed secret-sport-watts secret-sport-current secret-sport-fw true))
         )
     )
 )
 
-(defun configure-speed(speed watts current fw)
+(defun configure-speed(speed watts current fw secret) ; normal and secret modes gate each parameter separately
     {
-        (set-param 'max-speed speed)
-        (set-param 'l-watt-max watts)
-        (set-param 'l-current-max-scale current)
-        (set-param 'foc-fw-current-max fw)
+        (if (if secret secret-apply-speed apply-speed) (set-param 'max-speed speed))
+        (if (if secret secret-apply-watts apply-watts) (set-param 'l-watt-max watts))
+        (if (if secret secret-apply-current apply-current) (set-param 'l-current-max-scale current))
+        (if (if secret secret-apply-fw apply-fw) (set-param 'foc-fw-current-max fw))
     }
 )
 
@@ -751,21 +927,27 @@
 
 (defun handle-lock(speed)
     {
-        ; alarm detection
-        (var gyro (get-gyro))
-        (cond
-            ; gyro detects movement while locked
-            ((and lock (or (> (abs (ix gyro 0)) alarm-gyro-threshold) (> (abs (ix gyro 1)) alarm-gyro-threshold) (> (abs (ix gyro 2)) alarm-gyro-threshold))) ; locked and moving
-                (start-alarm)
-            )
-            ; wheel is moving while locked
-            ((and lock (> speed alarm-speed-threshold))
-                (start-alarm)
-            )
-            ; not locked or not moving (> 3 seconds)
-            ((or (not lock) (> (secs-since alarm-time) 3))
-                (stop-alarm)
-            )
+        ; alarm detection - gyro is only polled while locked, on controllers without
+        ; a local IMU get-gyro falls back to blocking CAN queries on every call
+        (if lock
+            {
+                (var gyro (get-gyro))
+                (cond
+                    ; gyro detects movement while locked
+                    ((or (> (abs (ix gyro 0)) alarm-gyro-threshold) (> (abs (ix gyro 1)) alarm-gyro-threshold) (> (abs (ix gyro 2)) alarm-gyro-threshold))
+                        (start-alarm)
+                    )
+                    ; wheel is moving while locked
+                    ((> speed alarm-speed-threshold)
+                        (start-alarm)
+                    )
+                    ; not moving (> 3 seconds)
+                    ((> (secs-since alarm-time) 3)
+                        (stop-alarm)
+                    )
+                )
+            }
+            (stop-alarm)
         )
 
         ; lock power control
@@ -990,13 +1172,15 @@
             (apply-mode)
 
             ; Spawn UART reading frames thread
-            (if (= model 1)
-                (spawn 150 read-frames-m365)
-                (spawn 150 read-frames-g30)
+            (if (= model 1) ; 200 words: the unlock display branch + trap wrapper need headroom
+                (spawn 200 read-frames-m365)
+                (spawn 200 read-frames-g30)
             )
             (button-logic) ; Start button logic in main thread - this will block the main thread
         })
 })
+
+@const-end
 
 (image-save)
 (main)
