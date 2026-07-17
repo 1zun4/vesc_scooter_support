@@ -28,12 +28,6 @@ VESC firmware 7.00, available at https://vesc-project.com/
 **Updating:** just install the new package over the old one - your settings are kept and
 migrated automatically. To go back to defaults, use the **Reset** button in the UI.
 
-Guides for the wiring and first setup:
-
-- [DE Guide](/guide/DE.md)
-- [German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
-- [How-To Video](https://www.youtube.com/watch?v=kX8PsaxfoXQ)
-
 ## Models
 
 One package for everything - the model is stored on the ESC and selected in the UI:
@@ -73,7 +67,7 @@ Lock, mode switching, headlight and secret mode activation are all **fully remap
 - **Auto headlight**: turn the headlight on automatically at power on
 - **Battery % at idle** on the dashboard, separately configurable for normal and secret modes
 - Motor start speed (kick-start) and temperature warning icon with configurable thresholds
-- Long button press turns the scooter off
+- Long button press turns the Dashboard off (not VESC itself)
 
 ### Robustness
 - Throttle watchdog: throttle and brake are released if the dashboard link drops mid-ride
@@ -103,6 +97,7 @@ Features to be added:
 ### Known Compatible VESCs
 - Spintend (Reliable & High Performance):
     - [Ubox Single Lite 100V 100A](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-100v-100a-based-on-vesc?ref=1zuna)
+    - Dual Ubox Single Lite Alu 100V 100A
     - [Ubox Single 85V 250A V2](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-85v-250a-v2-based-on-vesc?ref=1zuna)
     - Dual Ubox Alu Lite 100V 100A (dual-motor setup, master + slave)
 
