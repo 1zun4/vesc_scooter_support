@@ -63,12 +63,19 @@
 (def secret-apply-watts true)
 (def secret-apply-fw true)
 
-; Button gestures (combo: 0=brake+throttle, 1=brake only, 2=throttle only)
+; Button gestures (combo: 0=brake+throttle, 1=brake only, 2=throttle only, 3=none)
+; presses = 0 means no button press needed, the gesture fires from levers alone
 (def secret-presses 2)
 (def secret-combo 0)
 (def secret-requires-lock false) ; secret gesture only works while locked
 (def lock-presses 2)
 (def lock-combo 1)
+(def mode-presses 2)
+(def mode-combo 3)
+(def light-presses 1)
+(def light-combo 3)
+(def light-on-boot false)
+(def boot-mode 4) ; speed mode applied at boot (1=drive, 2=eco, 4=sport)
 
 ; -> Code starts here (DO NOT CHANGE ANYTHING BELOW THIS LINE IF YOU DON'T KNOW WHAT YOU ARE DOING)
 
@@ -107,6 +114,11 @@
 ; dash link watchdog: last time a throttle frame was received
 (def last-rx (systime))
 
+; lever-only gesture state (gestures configured with 0 presses)
+(def lever-state 0)
+(def lever-since (systime))
+(def lever-armed true)
+
 ; cached telemetry - refreshed at ~16 Hz by the button thread so the
 ; per-frame dash reply doesn't run CAN queries and allocations itself
 (def cur-speed-kmh 0.0)
@@ -114,7 +126,7 @@
 
 @const-start
 
-(def settings-version 303i32)
+(def settings-version 304i32)
 
 ; Persistent settings: (label . (eeprom-offset type))
 (def eeprom-addrs '(
@@ -169,6 +181,13 @@
     (secret-apply-speed    . (48 b))
     (secret-apply-current  . (49 b))
     (secret-apply-watts    . (50 b))
+    (mode-presses          . (51 i))
+    (mode-combo            . (52 i))
+    (light-presses         . (53 i))
+    (light-combo           . (54 i))
+    (light-on-boot         . (55 b))
+    (button-speed-kmh      . (56 f))
+    (boot-mode             . (57 i))
 ))
 
 (def last-button-state false)
@@ -207,6 +226,18 @@
     }
 )
 
+(defun write-remap-defaults () ; settings added in v304
+    {
+        (write-setting 'mode-presses 2)
+        (write-setting 'mode-combo 3)
+        (write-setting 'light-presses 1)
+        (write-setting 'light-combo 3)
+        (write-setting 'light-on-boot false)
+        (write-setting 'button-speed-kmh 0.1)
+        (write-setting 'boot-mode 4)
+    }
+)
+
 (defun restore-gesture-apply-defaults () ; settings added in v301+
     {
         (write-setting 'apply-speed true)
@@ -215,6 +246,7 @@
         (write-setting 'apply-fw true)
         (write-setting 'secret-apply-fw true)
         (write-secret-mode-toggles)
+        (write-remap-defaults)
         (write-setting 'secret-presses 2)
         (write-setting 'secret-combo 0)
         (write-setting 'secret-requires-lock false)
@@ -280,10 +312,16 @@
                 ((eq ver 301i32) {
                     (write-setting 'secret-apply-fw true)
                     (write-secret-mode-toggles)
+                    (write-remap-defaults)
                     (write-setting 'ver-code settings-version)
                 })
                 ((eq ver 302i32) {
                     (write-secret-mode-toggles)
+                    (write-remap-defaults)
+                    (write-setting 'ver-code settings-version)
+                })
+                ((eq ver 303i32) {
+                    (write-remap-defaults)
                     (write-setting 'ver-code settings-version)
                 })
                 (t (restore-defaults))
@@ -339,6 +377,13 @@
         (set 'secret-requires-lock (read-setting 'secret-requires-lock))
         (set 'lock-presses (read-setting 'lock-presses))
         (set 'lock-combo (read-setting 'lock-combo))
+        (set 'mode-presses (read-setting 'mode-presses))
+        (set 'mode-combo (read-setting 'mode-combo))
+        (set 'light-presses (read-setting 'light-presses))
+        (set 'light-combo (read-setting 'light-combo))
+        (set 'light-on-boot (read-setting 'light-on-boot))
+        (set 'button-safety-speed (/ (read-setting 'button-speed-kmh) 3.6))
+        (set 'boot-mode (read-setting 'boot-mode))
 
         (var m (read-setting 'model))
         (if (not (valid-model m)) {
@@ -386,8 +431,10 @@
 (defun save-mode-settings (
         eco-speed-kmh eco-current eco-watts eco-fw
         drive-speed-kmh drive-current drive-watts drive-fw
-        sport-speed-kmh sport-current sport-watts sport-fw)
+        sport-speed-kmh sport-current sport-watts sport-fw
+        boot)
     {
+        (write-setting 'boot-mode boot)
         (write-setting 'eco-speed-kmh eco-speed-kmh)
         (write-setting 'eco-current eco-current)
         (write-setting 'eco-watts eco-watts)
@@ -438,13 +485,24 @@
     }
 )
 
-(defun save-gesture-settings (s-presses s-combo s-locked l-presses l-combo)
+(defun save-gesture-settings (s-presses s-combo s-locked l-presses l-combo m-presses m-combo li-presses li-combo)
     {
         (write-setting 'secret-presses s-presses)
         (write-setting 'secret-combo s-combo)
         (write-setting 'secret-requires-lock s-locked)
         (write-setting 'lock-presses l-presses)
         (write-setting 'lock-combo l-combo)
+        (write-setting 'mode-presses m-presses)
+        (write-setting 'mode-combo m-combo)
+        (write-setting 'light-presses li-presses)
+        (write-setting 'light-combo li-combo)
+    }
+)
+
+(defun save-misc-settings (auto-light btn-speed-kmh)
+    {
+        (write-setting 'light-on-boot auto-light)
+        (write-setting 'button-speed-kmh btn-speed-kmh)
     }
 )
 
@@ -512,7 +570,8 @@
             (str-from-n (read-setting 'sport-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'sport-current) "%.2f ")
             (str-from-n (read-setting 'sport-watts) "%.0f ")
-            (str-from-n (read-setting 'sport-fw) "%.1f")
+            (str-from-n (read-setting 'sport-fw) "%.1f ")
+            (str-from-n (read-setting 'boot-mode) "%d")
         ))
         (send-data (str-merge
             "secret "
@@ -547,7 +606,16 @@
             (str-from-n (read-setting 'secret-combo) "%d ")
             (if (read-setting 'secret-requires-lock) "true " "false ")
             (str-from-n (read-setting 'lock-presses) "%d ")
-            (str-from-n (read-setting 'lock-combo) "%d")
+            (str-from-n (read-setting 'lock-combo) "%d ")
+            (str-from-n (read-setting 'mode-presses) "%d ")
+            (str-from-n (read-setting 'mode-combo) "%d ")
+            (str-from-n (read-setting 'light-presses) "%d ")
+            (str-from-n (read-setting 'light-combo) "%d")
+        ))
+        (send-data (str-merge
+            "misc "
+            (if (read-setting 'light-on-boot) "true " "false ")
+            (str-from-n (read-setting 'button-speed-kmh) "%.1f")
         ))
         (send-data (str-merge
             "alarm "
@@ -787,6 +855,51 @@
     )
 )
 
+(defun combo-state-match(combo state) ; state: bit0=brake, bit1=throttle
+    (cond
+        ((= combo 0) (= state 3))
+        ((= combo 1) (= state 1))
+        ((= combo 2) (= state 2))
+    )
+)
+
+(defun toggle-secret()
+    {
+        (set 'unlock (not unlock))
+        (set 'feedback 2) ; beep 2x
+        (apply-mode)
+    }
+)
+
+(defun toggle-lock()
+    {
+        (set 'lock (not lock)) ; lock on or off
+        (if lock (set 'unlock false)) ; locking always leaves secret mode, unlocking keeps it
+        (apply-mode)
+        (set 'light false) ; turn off light when locking
+        (set 'feedback 1) ; beep feedback
+        (if (not lock)
+            (stop-alarm)
+        )
+    }
+)
+
+(defun cycle-mode()
+    {
+        (cond
+            ((= speedmode 1) (set 'speedmode 4))
+            ((= speedmode 2) (set 'speedmode 1))
+            ((= speedmode 4) (set 'speedmode 2))
+        )
+        (apply-mode)
+    }
+)
+
+(defun toggle-light()
+    (set 'light (not light))
+)
+
+; Button gestures. Matching order: power-on, secret, lock, modes, light.
 (defun handle-button()
     {
         (var thr (get-adc-decoded 0))
@@ -802,45 +915,71 @@
                 }
             )
             ((and secret-enabled
-                    (> secret-presses 0) ; 0 = gesture disabled
+                    (> secret-presses 0)
                     (= presses secret-presses)
                     (combo-held secret-combo thr brk)
                     (or (not secret-requires-lock) lock))
-                {
-                    (set 'unlock (not unlock))
-                    (set 'feedback 2) ; beep 2x
-                    (apply-mode)
-                }
+                (toggle-secret)
             )
-            ((and (> lock-presses 0) ; 0 = gesture disabled
+            ((and (> lock-presses 0)
                     (= presses lock-presses)
                     (combo-held lock-combo thr brk))
-                {
-                    (set 'lock (not lock)) ; lock on or off
-                    (if lock (set 'unlock false)) ; locking always leaves secret mode, unlocking keeps it
-                    (apply-mode)
-                    (set 'light false) ; turn off light when locking
-                    (set 'feedback 1) ; beep feedback
-                    (if (not lock)
-                        (stop-alarm)
-                    )
-                }
+                (toggle-lock)
             )
-            ((= presses 1) ; single press: beep when locked, toggle light otherwise
-                (if lock
-                    (set 'feedback 1)
-                    (set 'light (not light))
+            ((and (not lock)
+                    (> mode-presses 0)
+                    (= presses mode-presses)
+                    (combo-held mode-combo thr brk))
+                (cycle-mode)
+            )
+            ((and (not lock)
+                    (> light-presses 0)
+                    (= presses light-presses)
+                    (combo-held light-combo thr brk))
+                (toggle-light)
+            )
+            (lock (set 'feedback 1)) ; locked: beep on any unmatched press
+        )
+    }
+)
+
+; Gestures configured with 0 presses fire from levers alone: the lever
+; combination must be held steady for 0.5 s and releases re-arm it.
+(defun handle-lever-gestures()
+    {
+        (var thr (get-adc-decoded 0))
+        (var brk (get-adc-decoded 1))
+        (var state (+ (if (> brk min-adc-brake) 1 0) (if (> thr min-adc-throttle) 2 0)))
+
+        (if (!= state lever-state) {
+            (set 'lever-state state)
+            (set 'lever-since (systime))
+        })
+        (if (= state 0) (set 'lever-armed true))
+
+        (if (and lever-armed (> state 0) (> (secs-since lever-since) 0.5))
+            (cond
+                ((and secret-enabled
+                        (= secret-presses 0)
+                        (combo-state-match secret-combo state)
+                        (or (not secret-requires-lock) lock))
+                    {
+                        (set 'lever-armed false)
+                        (toggle-secret)
+                    }
                 )
-            )
-            ((and (>= presses 2) (not lock) (<= thr min-adc-throttle) (<= brk min-adc-brake)) ; mode cycle needs released levers
-                {
-                    (cond
-                        ((= speedmode 1) (set 'speedmode 4))
-                        ((= speedmode 2) (set 'speedmode 1))
-                        ((= speedmode 4) (set 'speedmode 2))
-                    )
-                    (apply-mode)
-                }
+                ((and (not lock) (= mode-presses 0) (combo-state-match mode-combo state))
+                    {
+                        (set 'lever-armed false)
+                        (cycle-mode)
+                    }
+                )
+                ((and (not lock) (= light-presses 0) (combo-state-match light-combo state))
+                    {
+                        (set 'lever-armed false)
+                        (toggle-light)
+                    }
+                )
             )
         )
     }
@@ -1099,6 +1238,9 @@
                 (button-apply button-state)
 
                 (set 'last-button-state button-state)
+                (if (and (not off) (<= (abs (get-speed)) button-safety-speed))
+                    (handle-lever-gestures)
+                )
                 (handle-features)
             }
         )
@@ -1142,6 +1284,9 @@
         (if (= model 2) { ; Slave: code server only, model stays switchable over CAN
             (start-code-server)
         } {
+            (set 'speedmode (if (or (= boot-mode 1) (= boot-mode 2) (= boot-mode 4)) boot-mode 4))
+            (if light-on-boot (set 'light true))
+
             ; Packet handling
             (uart-start 115200 'half-duplex)
             (gpio-configure 'pin-rx 'pin-mode-in-pu)
