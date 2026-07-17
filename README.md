@@ -97,7 +97,6 @@ Features to be added:
 ### Known Compatible VESCs
 - Spintend (Reliable & High Performance):
     - [Ubox Single Lite 100V 100A](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-100v-100a-based-on-vesc?ref=1zuna)
-    - Dual Ubox Single Lite Alu 100V 100A
     - [Ubox Single 85V 250A V2](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-85v-250a-v2-based-on-vesc?ref=1zuna)
     - Dual Ubox Alu Lite 100V 100A (dual-motor setup, master + slave)
 
