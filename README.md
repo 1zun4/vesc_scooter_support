@@ -1,27 +1,90 @@
 # VESC Scooter Support
-Allows you to connect a Xiaomi or Ninebot display to a VESC controller.
+
+Connect a Xiaomi or Ninebot dashboard to a VESC controller. Speed modes, secret modes,
+lock with alarm, fully remappable button/lever gestures - everything configured from a
+phone-friendly UI and stored on the ESC.
+
+| General | Modes | Setup |
+|---------|-------|-------|
+| ![General](screenshots/general.jpg) | ![Modes](screenshots/modes.jpg) | ![Setup](screenshots/setup.jpg) |
+
+## Requirements
+
+VESC firmware 7.00, available at https://vesc-project.com/
 
 ## Installation
-Install this package, then pick your model in the app UI (VESC Tool -> Navigation Bar -> App UI).
-Read one of the guides below to get started.
+
+1. Connect to your VESC in VESC Tool and install this package
+   (**VESC Packages -> Load Custom -> select the .vescpkg**, or from the package store once listed).
+2. **Install the package on every VESC unit.** On dual-motor setups, switch to the second
+   unit via **CAN forwarding** and install it there too - each unit runs its own copy.
+3. Open the package UI (**Navigation Bar -> App UI**), go to the **Setup** tab and select
+   the model **for each unit**:
+   - the unit wired to the dashboard gets its dashboard model (**G30** or **M365/1S/PRO2**),
+   - every other unit gets **Slave**.
+4. Press **Save** - the script restarts with the chosen model. The model is stored per unit.
+5. Configure everything else in the **General**, **Modes** and **Setup** tabs and press **Save**.
+
+**Updating:** just install the new package over the old one - your settings are kept and
+migrated automatically. To go back to defaults, use the **Reset** button in the UI.
+
+Guides for the wiring and first setup:
 
 - [DE Guide](/guide/DE.md)
 - [German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
 - [How-To Video](https://www.youtube.com/watch?v=kX8PsaxfoXQ)
 
-## Requirements
-Requires VESC firmware 7.00, available at https://vesc-project.com/
-
 ## Models
-One script for everything - the model is stored on the ESC and selected in the UI:
+
+One package for everything - the model is stored on the ESC and selected in the UI:
 
 - **G30**: Ninebot G30 dashboard (Ninebot protocol)
 - **M365/1S/PRO2**: Xiaomi M365, 1S, Essential and PRO 2 dashboards (Xiaomi protocol)
-- **Slave**: secondary ESC in a dual setup - only runs the CAN code server, the master controls it
+- **Slave**: secondary ESC in a dual setup - only runs the CAN code server, the master
+  pushes the speed mode limits to it
 
-After changing the model, save in the UI - the script restarts on its own with the new model.
+## Features
+
+### Speed modes
+- Three speed modes (Eco / Drive / Sport) plus three **secret** modes, each with its own
+  speed, current scale, watts and field weakening
+- **Per-parameter apply toggles**: each parameter is only written to the motor config when
+  its checkbox is enabled - separately for normal and secret modes. Disabled parameters
+  never touch your VESC motor settings (e.g. keep your own field weakening setup)
+- **Startup mode** selection (Eco / Drive / Sport, applied at boot)
+
+### Gestures
+Lock, mode switching, headlight and secret mode activation are all **fully remappable**:
+
+- **Lever combination**: any mix of Brake / Throttle that must be held (or none)
+- **Button presses**: 1-5 presses, or **No** - with "No" the gesture fires from the levers
+  alone after holding the combination for half a second (no button press at all)
+- **Locked**: restrict a gesture so it only works while the scooter is locked
+  (e.g. secret mode only unlockable in locked state)
+- Gestures only react at standstill (configurable button-active speed in Setup)
+- Turning the scooter on (single press while off) always works, regardless of the mapping
+
+### Lock & alarm
+- Lock mode: motor braked when pushed, alarm with beeping and (optional) siren on
+  gyro or wheel movement, configurable thresholds and volume
+- Locking always leaves secret mode; unlocking restores it
+
+### Comfort
+- **Auto headlight**: turn the headlight on automatically at power on
+- **Battery % at idle** on the dashboard, separately configurable for normal and secret modes
+- Motor start speed (kick-start) and temperature warning icon with configurable thresholds
+- Long button press turns the scooter off
+
+### Robustness
+- Throttle watchdog: throttle and brake are released if the dashboard link drops mid-ride
+- Hardened UART frame parsing and supervised reader threads
+- All settings stored on the ESC with versioned, automatic migrations between releases
+
+Features to be added:
+- [ ] App communication
 
 ## Wiring
+
 <span style="color:rgb(184, 49, 47);">Red </span>to 5V \
 <span style="color:rgb(209, 213, 216);">Black </span>to GND \
 <span style="color:rgb(250, 197, 28);">Yellow </span>to TX (UART-HDX) \
@@ -30,22 +93,8 @@ After changing the model, save in the UI - the script restarts on its own with t
 
 ![image](guide/imgs/23999.png)
 
-## Features
-- [x] One package for G30, M365/1S/PRO2 and Slave ESCs - model switch in the UI
-- [x] All settings configurable in the UI, stored on the ESC (no more source editing)
-- [x] Multiple speed modes (Press twice)
-- [x] Secret speed modes (Hold throttle and brake and press twice)
-- [x] Lock mode with alarm, beeping and braking (Press twice while holding brake)
-- [x] Motor start speed feature (More secure)
-- [x] Shutdown feature (Long press to turn off)
-- [x] Battery Idle % on Secret Sport Mode
-- [x] Temperature notification icon (configurable threshold)
-
-Features to be added:
-- [ ] App communication
-- [ ] More unlock combinations
-
 ## Tested Hardware
+
 ### BLE Displays
 - Clone M365 PRO Dashboard ([AliExpress](https://s.click.aliexpress.com/e/_9JHFDN))
 - Original DE-Edition PRO 2 Dashboard
@@ -55,6 +104,7 @@ Features to be added:
 - Spintend (Reliable & High Performance):
     - [Ubox Single Lite 100V 100A](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-100v-100a-based-on-vesc?ref=1zuna)
     - [Ubox Single 85V 250A V2](https://spintend.com/collections/esc-based-on-vesc/products/single-ubox-aluminum-controller-85v-250a-v2-based-on-vesc?ref=1zuna)
+    - Dual Ubox Alu Lite 100V 100A (dual-motor setup, master + slave)
 
 - Makerbase:
     - [Makerbase VESC 60100HP V2 60V 100A](https://s.click.aliexpress.com/e/_c4N2B2WD)
@@ -70,4 +120,5 @@ Features to be added:
     - and many more - use whatever you like.
 
 ## See Also
+
 https://github.com/Koxx3/SmartESC_STM32_v2 (VESC firmware for Xiaomi ESCs)

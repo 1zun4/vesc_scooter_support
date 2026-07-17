@@ -11,7 +11,8 @@
 (def min-adc-brake 0.1)
 (def temp-warning-motor 100) ; temperature warning for motor in degree celsius
 (def temp-warning-fet 80) ; temperature warning for fet in degree celsius
-(def show-batt-in-idle true)
+(def show-batt-in-idle false) ; battery instead of speed at idle, normal modes
+(def show-batt-idle-secret true) ; same but in secret modes
 (def min-speed 1) ; minimum speed in km/h to enable throttle and brake
 (def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
 
@@ -65,17 +66,19 @@
 
 ; Button gestures (combo: 0=brake+throttle, 1=brake only, 2=throttle only, 3=none)
 ; presses = 0 means no button press needed, the gesture fires from levers alone
-(def secret-presses 2)
+(def secret-presses 1)
 (def secret-combo 0)
 (def secret-requires-lock false) ; secret gesture only works while locked
 (def lock-presses 2)
 (def lock-combo 1)
 (def mode-presses 2)
 (def mode-combo 3)
+(def mode-requires-lock false)
 (def light-presses 1)
 (def light-combo 3)
+(def light-requires-lock false)
 (def light-on-boot false)
-(def boot-mode 4) ; speed mode applied at boot (1=drive, 2=eco, 4=sport)
+(def boot-mode 1) ; speed mode applied at boot (1=drive, 2=eco, 4=sport)
 
 ; -> Code starts here (DO NOT CHANGE ANYTHING BELOW THIS LINE IF YOU DON'T KNOW WHAT YOU ARE DOING)
 
@@ -126,7 +129,7 @@
 
 @const-start
 
-(def settings-version 304i32)
+(def settings-version 305i32)
 
 ; Persistent settings: (label . (eeprom-offset type))
 (def eeprom-addrs '(
@@ -188,6 +191,9 @@
     (light-on-boot         . (55 b))
     (button-speed-kmh      . (56 f))
     (boot-mode             . (57 i))
+    (show-batt-idle-secret . (58 b))
+    (mode-requires-lock    . (59 b))
+    (light-requires-lock   . (60 b))
 ))
 
 (def last-button-state false)
@@ -226,6 +232,16 @@
     }
 )
 
+(defun write-v305-defaults () ; settings added in v305
+    {
+        ; battery-on-idle used to act in secret modes only - keep that behavior
+        (write-setting 'show-batt-idle-secret (read-setting 'show-batt-in-idle))
+        (write-setting 'show-batt-in-idle false)
+        (write-setting 'mode-requires-lock false)
+        (write-setting 'light-requires-lock false)
+    }
+)
+
 (defun write-remap-defaults () ; settings added in v304
     {
         (write-setting 'mode-presses 2)
@@ -234,7 +250,7 @@
         (write-setting 'light-combo 3)
         (write-setting 'light-on-boot false)
         (write-setting 'button-speed-kmh 0.1)
-        (write-setting 'boot-mode 4)
+        (write-setting 'boot-mode 1)
     }
 )
 
@@ -247,7 +263,8 @@
         (write-setting 'secret-apply-fw true)
         (write-secret-mode-toggles)
         (write-remap-defaults)
-        (write-setting 'secret-presses 2)
+        (write-v305-defaults)
+        (write-setting 'secret-presses 1)
         (write-setting 'secret-combo 0)
         (write-setting 'secret-requires-lock false)
         (write-setting 'lock-presses 2)
@@ -313,15 +330,22 @@
                     (write-setting 'secret-apply-fw true)
                     (write-secret-mode-toggles)
                     (write-remap-defaults)
+                    (write-v305-defaults)
                     (write-setting 'ver-code settings-version)
                 })
                 ((eq ver 302i32) {
                     (write-secret-mode-toggles)
                     (write-remap-defaults)
+                    (write-v305-defaults)
                     (write-setting 'ver-code settings-version)
                 })
                 ((eq ver 303i32) {
                     (write-remap-defaults)
+                    (write-v305-defaults)
+                    (write-setting 'ver-code settings-version)
+                })
+                ((eq ver 304i32) {
+                    (write-v305-defaults)
                     (write-setting 'ver-code settings-version)
                 })
                 (t (restore-defaults))
@@ -334,6 +358,7 @@
         (set 'temp-warning-motor (read-setting 'temp-warning-motor))
         (set 'temp-warning-fet (read-setting 'temp-warning-fet))
         (set 'show-batt-in-idle (read-setting 'show-batt-in-idle))
+        (set 'show-batt-idle-secret (read-setting 'show-batt-idle-secret))
         (set 'min-speed (read-setting 'min-speed-kmh))
         (set 'alarm-tone (read-setting 'alarm-tone))
         (set 'alarm-speed-threshold (read-setting 'alarm-speed-threshold))
@@ -379,8 +404,10 @@
         (set 'lock-combo (read-setting 'lock-combo))
         (set 'mode-presses (read-setting 'mode-presses))
         (set 'mode-combo (read-setting 'mode-combo))
+        (set 'mode-requires-lock (read-setting 'mode-requires-lock))
         (set 'light-presses (read-setting 'light-presses))
         (set 'light-combo (read-setting 'light-combo))
+        (set 'light-requires-lock (read-setting 'light-requires-lock))
         (set 'light-on-boot (read-setting 'light-on-boot))
         (set 'button-safety-speed (/ (read-setting 'button-speed-kmh) 3.6))
         (set 'boot-mode (read-setting 'boot-mode))
@@ -411,12 +438,13 @@
     }
 )
 
-(defun save-general-settings (adc throttle brake show-batt min-speed-kmh)
+(defun save-general-settings (adc throttle brake show-batt show-batt-secret min-speed-kmh)
     {
         (write-setting 'software-adc adc)
         (write-setting 'min-adc-throttle throttle)
         (write-setting 'min-adc-brake brake)
         (write-setting 'show-batt-in-idle show-batt)
+        (write-setting 'show-batt-idle-secret show-batt-secret)
         (write-setting 'min-speed-kmh min-speed-kmh)
     }
 )
@@ -485,7 +513,7 @@
     }
 )
 
-(defun save-gesture-settings (s-presses s-combo s-locked l-presses l-combo m-presses m-combo li-presses li-combo)
+(defun save-gesture-settings (s-presses s-combo s-locked l-presses l-combo m-presses m-combo m-locked li-presses li-combo li-locked)
     {
         (write-setting 'secret-presses s-presses)
         (write-setting 'secret-combo s-combo)
@@ -494,8 +522,10 @@
         (write-setting 'lock-combo l-combo)
         (write-setting 'mode-presses m-presses)
         (write-setting 'mode-combo m-combo)
+        (write-setting 'mode-requires-lock m-locked)
         (write-setting 'light-presses li-presses)
         (write-setting 'light-combo li-combo)
+        (write-setting 'light-requires-lock li-locked)
     }
 )
 
@@ -550,6 +580,7 @@
             (str-from-n (read-setting 'min-adc-throttle) "%.2f ")
             (str-from-n (read-setting 'min-adc-brake) "%.2f ")
             (if (read-setting 'show-batt-in-idle) "true " "false ")
+            (if (read-setting 'show-batt-idle-secret) "true " "false ")
             (str-from-n (read-setting 'min-speed-kmh) "%.1f")
         ))
         (send-data (str-merge
@@ -609,8 +640,10 @@
             (str-from-n (read-setting 'lock-combo) "%d ")
             (str-from-n (read-setting 'mode-presses) "%d ")
             (str-from-n (read-setting 'mode-combo) "%d ")
+            (if (read-setting 'mode-requires-lock) "true " "false ")
             (str-from-n (read-setting 'light-presses) "%d ")
-            (str-from-n (read-setting 'light-combo) "%d")
+            (str-from-n (read-setting 'light-combo) "%d ")
+            (if (read-setting 'light-requires-lock) "true" "false")
         ))
         (send-data (str-merge
             "misc "
@@ -743,7 +776,7 @@
         ; speed field
         (if lock
             (bufset-u8 tx-frame (+ tx-base 4) 0) ; lock display
-            (if (and show-batt-in-idle unlock)
+            (if (if unlock show-batt-idle-secret show-batt-in-idle)
                 (if (> current-speed 1)
                     (bufset-u8 tx-frame (+ tx-base 4) current-speed)
                     (bufset-u8 tx-frame (+ tx-base 4) battery))
@@ -926,13 +959,13 @@
                     (combo-held lock-combo thr brk))
                 (toggle-lock)
             )
-            ((and (not lock)
+            ((and (if mode-requires-lock lock (not lock))
                     (> mode-presses 0)
                     (= presses mode-presses)
                     (combo-held mode-combo thr brk))
                 (cycle-mode)
             )
-            ((and (not lock)
+            ((and (if light-requires-lock lock (not lock))
                     (> light-presses 0)
                     (= presses light-presses)
                     (combo-held light-combo thr brk))
@@ -968,13 +1001,13 @@
                         (toggle-secret)
                     }
                 )
-                ((and (not lock) (= mode-presses 0) (combo-state-match mode-combo state))
+                ((and (if mode-requires-lock lock (not lock)) (= mode-presses 0) (combo-state-match mode-combo state))
                     {
                         (set 'lever-armed false)
                         (cycle-mode)
                     }
                 )
-                ((and (not lock) (= light-presses 0) (combo-state-match light-combo state))
+                ((and (if light-requires-lock lock (not lock)) (= light-presses 0) (combo-state-match light-combo state))
                     {
                         (set 'lever-armed false)
                         (toggle-light)
