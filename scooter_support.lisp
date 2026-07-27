@@ -10,8 +10,6 @@
 (def software-adc true)
 (def temp-warning-motor 100) ; temperature warning for motor in degree celsius
 (def temp-warning-fet 80) ; temperature warning for fet in degree celsius
-(def show-batt-in-idle true)
-(def min-speed 1) ; minimum speed in km/h to enable throttle and brake
 
 ; Alarm parameters (foc-play-tone)
 (def alarm-tone true)
@@ -21,6 +19,9 @@
 ;(def alarm-frequency) ; todo: not supported yet, lower = louder, current: 2=4000, 3=7000, 6=2000
 
 ; Speed modes (km/h, watts, current scale)
+; idle display: 0=speed 1=battery 2=motor temp 3=controller temp 4=voltage 5=trip 6=top speed
+(def idle-display 1)
+(def min-speed 1) ; minimum speed in km/h to enable throttle and brake
 (def eco-speed (/ 7 3.6))
 (def eco-current 0.6)
 (def eco-watts 400)
@@ -36,6 +37,8 @@
 
 ; Secret speed modes. To enable, press the button 2 times while holding break and throttle at the same time.
 (def secret-enabled true)
+(def secret-idle-display 1)
+(def secret-min-speed 1)
 (def secret-eco-speed (/ 27 3.6))
 (def secret-eco-current 1.0)
 (def secret-eco-watts 1200)
@@ -82,9 +85,12 @@
 ; sound feedback
 (def feedback 0)
 
+; idle display
+(def trip-start 0) ; meters at last turn-on
+
 @const-start
 
-(def settings-version 300i32)
+(def settings-version 302i32)
 (def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
 (def min-adc-throttle 0.1) ; throttle and brake needed to reach the secret modes
 (def min-adc-brake 0.1)
@@ -96,7 +102,7 @@
     ; offsets 2 and 3 are free, never renumber in use
     (temp-warning-motor    . (4 f))
     (temp-warning-fet      . (5 f))
-    (show-batt-in-idle     . (6 b))
+    (idle-display          . (6 i))
     (min-speed-kmh         . (7 f))
     (alarm-tone            . (8 b))
     (alarm-speed-threshold . (9 f))
@@ -115,6 +121,8 @@
     (sport-watts           . (22 f))
     (sport-fw              . (23 f))
     (secret-enabled        . (24 b))
+    (secret-idle-display   . (38 i))
+    (secret-min-speed-kmh  . (39 f))
     (secret-eco-speed-kmh  . (25 f))
     (secret-eco-current    . (26 f))
     (secret-eco-watts      . (27 f))
@@ -162,12 +170,12 @@
         (write-setting 'software-adc true)
         (write-setting 'temp-warning-motor 100.0)
         (write-setting 'temp-warning-fet 80.0)
-        (write-setting 'show-batt-in-idle true)
-        (write-setting 'min-speed-kmh 1.0)
         (write-setting 'alarm-tone true)
         (write-setting 'alarm-speed-threshold 0.5)
         (write-setting 'alarm-gyro-threshold 10.0)
         (write-setting 'alarm-voltage 24.0)
+        (write-setting 'idle-display 1)
+        (write-setting 'min-speed-kmh 1.0)
         (write-setting 'eco-speed-kmh 7.0)
         (write-setting 'eco-current 0.6)
         (write-setting 'eco-watts 400.0)
@@ -181,6 +189,8 @@
         (write-setting 'sport-watts 700.0)
         (write-setting 'sport-fw 0.0)
         (write-setting 'secret-enabled true)
+        (write-setting 'secret-idle-display 1)
+        (write-setting 'secret-min-speed-kmh 1.0)
         (write-setting 'secret-eco-speed-kmh 27.0)
         (write-setting 'secret-eco-current 1.0)
         (write-setting 'secret-eco-watts 1200.0)
@@ -207,12 +217,12 @@
         (set 'software-adc (read-setting 'software-adc))
         (set 'temp-warning-motor (read-setting 'temp-warning-motor))
         (set 'temp-warning-fet (read-setting 'temp-warning-fet))
-        (set 'show-batt-in-idle (read-setting 'show-batt-in-idle))
-        (set 'min-speed (read-setting 'min-speed-kmh))
         (set 'alarm-tone (read-setting 'alarm-tone))
         (set 'alarm-speed-threshold (read-setting 'alarm-speed-threshold))
         (set 'alarm-gyro-threshold (read-setting 'alarm-gyro-threshold))
         (set 'alarm-voltage (read-setting 'alarm-voltage))
+        (set 'idle-display (read-setting 'idle-display))
+        (set 'min-speed (read-setting 'min-speed-kmh))
         (set 'eco-speed (/ (read-setting 'eco-speed-kmh) 3.6))
         (set 'eco-current (read-setting 'eco-current))
         (set 'eco-watts (read-setting 'eco-watts))
@@ -226,6 +236,8 @@
         (set 'sport-watts (read-setting 'sport-watts))
         (set 'sport-fw (read-setting 'sport-fw))
         (set 'secret-enabled (read-setting 'secret-enabled))
+        (set 'secret-idle-display (read-setting 'secret-idle-display))
+        (set 'secret-min-speed (read-setting 'secret-min-speed-kmh))
         (set 'secret-eco-speed (/ (read-setting 'secret-eco-speed-kmh) 3.6))
         (set 'secret-eco-current (read-setting 'secret-eco-current))
         (set 'secret-eco-watts (read-setting 'secret-eco-watts))
@@ -265,12 +277,8 @@
     }
 )
 
-(defun save-general-settings (adc show-batt min-speed-kmh)
-    {
-        (write-setting 'software-adc adc)
-        (write-setting 'show-batt-in-idle show-batt)
-        (write-setting 'min-speed-kmh min-speed-kmh)
-    }
+(defun save-general-settings (adc)
+    (write-setting 'software-adc adc)
 )
 
 (defun save-temp-settings (motor-warning fet-warning)
@@ -281,10 +289,13 @@
 )
 
 (defun save-mode-settings (
+        idle min-speed-kmh
         eco-speed-kmh eco-current eco-watts eco-fw
         drive-speed-kmh drive-current drive-watts drive-fw
         sport-speed-kmh sport-current sport-watts sport-fw)
     {
+        (write-setting 'idle-display idle)
+        (write-setting 'min-speed-kmh min-speed-kmh)
         (write-setting 'eco-speed-kmh eco-speed-kmh)
         (write-setting 'eco-current eco-current)
         (write-setting 'eco-watts eco-watts)
@@ -301,12 +312,14 @@
 )
 
 (defun save-secret-settings (
-        enabled
+        enabled idle min-speed-kmh
         eco-speed-kmh eco-current eco-watts eco-fw
         drive-speed-kmh drive-current drive-watts drive-fw
         sport-speed-kmh sport-current sport-watts sport-fw)
     {
         (write-setting 'secret-enabled enabled)
+        (write-setting 'secret-idle-display idle)
+        (write-setting 'secret-min-speed-kmh min-speed-kmh)
         (write-setting 'secret-eco-speed-kmh eco-speed-kmh)
         (write-setting 'secret-eco-current eco-current)
         (write-setting 'secret-eco-watts eco-watts)
@@ -362,9 +375,7 @@
         ))
         (send-data (str-merge
             "general "
-            (if (read-setting 'software-adc) "true " "false ")
-            (if (read-setting 'show-batt-in-idle) "true " "false ")
-            (str-from-n (read-setting 'min-speed-kmh) "%.1f")
+            (if (read-setting 'software-adc) "true" "false")
         ))
         (send-data (str-merge
             "temps "
@@ -373,6 +384,8 @@
         ))
         (send-data (str-merge
             "modes "
+            (str-from-n (read-setting 'idle-display) "%d ")
+            (str-from-n (read-setting 'min-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'eco-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'eco-current) "%.2f ")
             (str-from-n (read-setting 'eco-watts) "%.0f ")
@@ -389,6 +402,8 @@
         (send-data (str-merge
             "secret "
             (if (read-setting 'secret-enabled) "true " "false ")
+            (str-from-n (read-setting 'secret-idle-display) "%d ")
+            (str-from-n (read-setting 'secret-min-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'secret-eco-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'secret-eco-current) "%.2f ")
             (str-from-n (read-setting 'secret-eco-watts) "%.0f ")
@@ -444,8 +459,9 @@
 (defun handle-features()
     {
         (var current-speed (* (get-lowest-speed) 3.6))
+        (var start-speed (if unlock secret-min-speed min-speed))
 
-        (if (or off lock (< current-speed min-speed))
+        (if (or off lock (< current-speed start-speed))
             (if (not (app-is-output-disabled)) ; Disable output when scooter is turned off
                 {
                     (app-adc-override 0 0)
@@ -467,10 +483,31 @@
     }
 )
 
+(defun clamp-u8 (value)
+    (cond
+        ((< value 0) 0)
+        ((> value 255) 255)
+        (t value)
+    )
+)
+
+(defun idle-value (mode)
+    (cond
+        ((= mode 1) (* (get-batt) 100))
+        ((= mode 2) (get-highest-temp-mot))
+        ((= mode 3) (get-highest-temp-fet))
+        ((= mode 4) (get-vin))
+        ((= mode 5) (/ (- (get-dist-abs) trip-start) 1000))
+        ((= mode 6) (* (stats 'stat-speed-max) 3.6))
+        (t 0)
+    )
+)
+
 (defun update-dash(buffer) ; Frame 0x64
     {
         (var current-speed (abs (* (get-lowest-speed) 3.6)))
         (var battery (*(get-batt) 100))
+        (var idle-mode (if unlock secret-idle-display idle-display))
         (var crc-end (- (buflen tx-frame) 2)) ; crc bytes at end of frame
 
         ; mode field (1=drive, 2=eco, 4=sport, 8=charge, 16=off, 32=lock)
@@ -512,10 +549,8 @@
         ; speed field
         (if lock
             (bufset-u8 tx-frame (+ tx-base 4) 0) ; lock display
-            (if (and show-batt-in-idle unlock)
-                (if (> current-speed 1)
-                    (bufset-u8 tx-frame (+ tx-base 4) current-speed)
-                    (bufset-u8 tx-frame (+ tx-base 4) battery))
+            (if (and (> idle-mode 0) (< current-speed 1))
+                (bufset-u8 tx-frame (+ tx-base 4) (clamp-u8 (idle-value idle-mode)))
                 (bufset-u8 tx-frame (+ tx-base 4) current-speed)
             )
         )
@@ -614,6 +649,7 @@
                 (set 'unlock false) ; Disable unlock on turn off
                 (apply-mode) ; Apply mode on start-up
                 (stats-reset) ; reset stats when turning on
+                (set 'trip-start (get-dist-abs)) ; trip counts from turn-on
             }
             (if lock ; is it locked?
                 (set 'feedback 1) ; beep feedback
@@ -844,6 +880,38 @@
         )
 
         speed
+    }
+)
+
+(defun get-highest-temp-fet()
+    {
+        (var temp (get-temp-fet))
+        (loopforeach i (can-list-devs)
+            {
+                (var can-temp (canget-temp-fet i))
+                (if (> can-temp temp)
+                    (set 'temp can-temp)
+                )
+            }
+        )
+
+        temp
+    }
+)
+
+(defun get-highest-temp-mot()
+    {
+        (var temp (get-temp-mot))
+        (loopforeach i (can-list-devs)
+            {
+                (var can-temp (canget-temp-motor i))
+                (if (> can-temp temp)
+                    (set 'temp can-temp)
+                )
+            }
+        )
+
+        temp
     }
 )
 

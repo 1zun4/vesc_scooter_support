@@ -36,9 +36,9 @@ After changing the model, save in the UI - the script restarts on its own with t
 - [x] Speed mode switch (Press twice)
 - [x] Secret speed mode (Hold throttle and brake and press twice)
 - [x] Lock mode with alarm, beeping and braking (Press twice while holding brake)
-- [x] Motor start speed feature (More secure)
-- [x] Shutdown feature (Long press to turn off)
-- [x] Battery Idle % on Secret Sport Mode
+- [x] Shutdown support (Long press to turn off)
+- [x] Motor start speed
+- [x] Idle display (battery, motor and controller temperature, voltage, trip or top speed)
 - [x] Temperature notification icon (configurable threshold)
 
 ## TODO
