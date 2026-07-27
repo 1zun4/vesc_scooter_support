@@ -41,9 +41,17 @@ After changing the model, save in the UI - the script restarts on its own with t
 - [x] Battery Idle % on Secret Sport Mode
 - [x] Temperature notification icon (configurable threshold)
 
-Features to be added:
-- [ ] App communication
-- [ ] More unlock combinations
+## TODO
+- [ ] App communication (support third-party Xiaomi/NineBot apps)
+- [ ] More secret profile button combinations (e.g. 3x press without brake)
+- [ ] Cruise control (throttle gesture in secret mode)
+- [ ] Idle timeout (shut down after X seconds of inactivity)
+- [ ] Rear light and brake light output
+- [ ] mph/km display toggle
+- [ ] Overmodulation factor per mode
+- [ ] Throttle/brake plausibility check (detect disconnected sensor)
+- [ ] Use BMS SoC for battery display when available
+- [ ] Wheelie Control (take [vl_bike_39p](https://github.com/vedderb/vesc_pkg/tree/main/vl_bike_39p) and [dash35b](https://github.com/vedderb/vesc_pkg/tree/main/dash35b) pkg as reference)
 
 ## Tested Hardware
 ### BLE Displays
