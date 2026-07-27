@@ -6,6 +6,7 @@
 ; UART Wiring: red=5V black=GND yellow=COM-TX (UART-HDX) green=COM-RX (button)+3.3V with 1K Resistor
 ; Guide (German): https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/
 
+; Defaults, overwritten from EEPROM on start
 (def software-adc true)
 (def min-adc-throttle 0.1)
 (def min-adc-brake 0.1)
@@ -13,7 +14,6 @@
 (def temp-warning-fet 80) ; temperature warning for fet in degree celsius
 (def show-batt-in-idle true)
 (def min-speed 1) ; minimum speed in km/h to enable throttle and brake
-(def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
 
 ; Alarm parameters (foc-play-tone)
 (def alarm-tone true)
@@ -68,6 +68,7 @@
 ; Button handling
 (def press-time (systime))
 (def presses 0)
+(def last-button-state false)
 
 ; Mode states
 (def off false)
@@ -86,6 +87,7 @@
 @const-start
 
 (def settings-version 300i32)
+(def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
 
 ; Persistent settings: (label . (eeprom-offset type))
 (def eeprom-addrs '(
@@ -128,8 +130,6 @@
     (secret-sport-fw       . (36 f))
     (model                 . (37 i))
 ))
-
-(def last-button-state false)
 
 (defun read-setting (name)
     (let (
@@ -427,8 +427,6 @@
             ((event-data-rx . (? data)) (trap (eval (read data))))
             (_ nil)
 )))
-
-@const-end
 
 (defun adc-input(buffer) ; Frame 0x65
     {
@@ -997,6 +995,8 @@
             (button-logic) ; Start button logic in main thread - this will block the main thread
         })
 })
+
+@const-end
 
 (image-save)
 (main)
