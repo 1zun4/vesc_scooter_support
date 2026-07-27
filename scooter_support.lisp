@@ -776,32 +776,33 @@
 
 (defun handle-lock(speed)
     {
-        ; alarm detection
-        (var gyro (get-gyro))
-        (cond
-            ; gyro detects movement while locked
-            ((and lock (or (> (abs (ix gyro 0)) alarm-gyro-threshold) (> (abs (ix gyro 1)) alarm-gyro-threshold) (> (abs (ix gyro 2)) alarm-gyro-threshold))) ; locked and moving
-                (start-alarm)
-            )
-            ; wheel is moving while locked
-            ((and lock (> speed alarm-speed-threshold))
-                (start-alarm)
-            )
-            ; not locked or not moving (> 3 seconds)
-            ((or (not lock) (> (secs-since alarm-time) 3))
-                (stop-alarm)
-            )
-        )
-
         ; lock power control
         (if lock
             {
+                ; alarm detection
+                (var gyro (get-gyro))
+                (cond
+                    ; gyro detects movement while locked
+                    ((or (> (abs (ix gyro 0)) alarm-gyro-threshold) (> (abs (ix gyro 1)) alarm-gyro-threshold) (> (abs (ix gyro 2)) alarm-gyro-threshold)) ; locked and moving
+                        (start-alarm)
+                    )
+                    ; wheel is moving while locked
+                    ((> speed alarm-speed-threshold)
+                        (start-alarm)
+                    )
+                    ; not locked or not moving (> 3 seconds)
+                    ((> (secs-since alarm-time) 3))
+                        (stop-alarm)
+                    )
+                )
+
                 (set-current-rel 0) ; No current input when locked
                 (if (and (> alarm 0) (> speed 0.0))
                     (set-brake-rel 1) ; Full power brake
                     (set-brake-rel 0) ; No brake
                 )
             }
+            (stop-alarm)
         )
 
         ; alarm sound handling
