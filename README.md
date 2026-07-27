@@ -1,11 +1,11 @@
 # VESC Scooter Support
-Allows you to connect your XIAOMI or NINEBOT display to VESC controller.
+Allows you to connect a Xiaomi or Ninebot display to a VESC controller.
 
 ## Installation
-Do you want to use your Xiaomi or NineBot BLE with a VESC controller? This is the right place for you! \
+Install this package, then pick your model in the app UI (VESC Tool -> Navigation Bar -> App UI).
 Read one of the guides below to get started.
 
-- [DE Guide](/guide/DE.md)
+- [DE Guide](https://github.com/1zun4/vesc_scooter_support/blob/main/guide/DE.md)
 - [German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
 - [How-To Video](https://www.youtube.com/watch?v=kX8PsaxfoXQ)
 
@@ -13,29 +13,35 @@ Read one of the guides below to get started.
 Requires VESC firmware 7.00, available at https://vesc-project.com/
 
 ## Models
-- **M365**: https://github.com/1zun4/vesc_scooter_support/blob/main/m365_dash.lisp
-- **G30**: https://github.com/1zun4/vesc_scooter_support/blob/main/g30_dash.lisp
+One VESC package for everything:
 
-## How do I wire it?
+- **G30**: Ninebot G30 dashboard (Ninebot protocol)
+- **M365/1S/PRO2**: Xiaomi M365, 1S, Essential and PRO 2 dashboards (Xiaomi protocol)
+- **Slave**: secondary ESC in a dual setup - only runs the CAN code server, the master controls it
+
+After changing the model, save in the UI - the script restarts on its own with the new model.
+
+## Wiring
 <span style="color:rgb(184, 49, 47);">Red </span>to 5V \
 <span style="color:rgb(209, 213, 216);">Black </span>to GND \
 <span style="color:rgb(250, 197, 28);">Yellow </span>to TX (UART-HDX) \
 <span style="color:rgb(97, 189, 109);">Green </span>to RX (Button) \
 1k Ohm Resistor from <span style="color:rgb(251, 160, 38);">3.3V</span> to <span style="color:rgb(97, 189, 109);">RX (Button)</span>
 
-![image](guide/imgs/23999.png)
+![image](https://raw.githubusercontent.com/1zun4/vesc_scooter_support/main/guide/imgs/23999.png)
 
 ## Features
-- [x] Multiple speed modes (Press twice)
-- [x] Secret speed modes (Hold throttle and brake and press twice)
-- [x] Lock mode with beeping and braking (Press twice while holding break)
+- [x] One package for G30, M365/1S/PRO2 and Slave ESCs
+- [x] Settings in the UI
+- [x] Speed mode switch (Press twice)
+- [x] Secret speed mode (Hold throttle and brake and press twice)
+- [x] Lock mode with alarm, beeping and braking (Press twice while holding brake)
 - [x] Motor start speed feature (More secure)
 - [x] Shutdown feature (Long press to turn off)
 - [x] Battery Idle % on Secret Sport Mode
-- [x] Temperature notification icon at 60°C
+- [x] Temperature notification icon (configurable threshold)
 
 ## TODO
-- [ ] All-in-one VESC package (https://github.com/1zun4/vesc_scooter_support/pull/23)
 - [ ] App communication (support third-party Xiaomi/NineBot apps)
 - [ ] More secret profile button combinations (e.g. 3x press without brake)
 - [ ] Cruise control (throttle gesture in secret mode)
