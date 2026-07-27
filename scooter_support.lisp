@@ -8,8 +8,6 @@
 
 ; Defaults, overwritten from EEPROM on start
 (def software-adc true)
-(def min-adc-throttle 0.1)
-(def min-adc-brake 0.1)
 (def temp-warning-motor 100) ; temperature warning for motor in degree celsius
 (def temp-warning-fet 80) ; temperature warning for fet in degree celsius
 (def show-batt-in-idle true)
@@ -88,13 +86,14 @@
 
 (def settings-version 300i32)
 (def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
+(def min-adc-throttle 0.1) ; throttle and brake needed to reach the secret modes
+(def min-adc-brake 0.1)
 
 ; Persistent settings: (label . (eeprom-offset type))
 (def eeprom-addrs '(
     (ver-code              . (0 i))
     (software-adc          . (1 b))
-    (min-adc-throttle      . (2 f))
-    (min-adc-brake         . (3 f))
+    ; offsets 2 and 3 are free, never renumber in use
     (temp-warning-motor    . (4 f))
     (temp-warning-fet      . (5 f))
     (show-batt-in-idle     . (6 b))
@@ -161,8 +160,6 @@
     {
         (var cur-model (read-setting 'model)) ; keep model across restores
         (write-setting 'software-adc true)
-        (write-setting 'min-adc-throttle 0.1)
-        (write-setting 'min-adc-brake 0.1)
         (write-setting 'temp-warning-motor 100.0)
         (write-setting 'temp-warning-fet 80.0)
         (write-setting 'show-batt-in-idle true)
@@ -208,8 +205,6 @@
         )
 
         (set 'software-adc (read-setting 'software-adc))
-        (set 'min-adc-throttle (read-setting 'min-adc-throttle))
-        (set 'min-adc-brake (read-setting 'min-adc-brake))
         (set 'temp-warning-motor (read-setting 'temp-warning-motor))
         (set 'temp-warning-fet (read-setting 'temp-warning-fet))
         (set 'show-batt-in-idle (read-setting 'show-batt-in-idle))
@@ -270,11 +265,9 @@
     }
 )
 
-(defun save-general-settings (adc throttle brake show-batt min-speed-kmh)
+(defun save-general-settings (adc show-batt min-speed-kmh)
     {
         (write-setting 'software-adc adc)
-        (write-setting 'min-adc-throttle throttle)
-        (write-setting 'min-adc-brake brake)
         (write-setting 'show-batt-in-idle show-batt)
         (write-setting 'min-speed-kmh min-speed-kmh)
     }
@@ -370,8 +363,6 @@
         (send-data (str-merge
             "general "
             (if (read-setting 'software-adc) "true " "false ")
-            (str-from-n (read-setting 'min-adc-throttle) "%.2f ")
-            (str-from-n (read-setting 'min-adc-brake) "%.2f ")
             (if (read-setting 'show-batt-in-idle) "true " "false ")
             (str-from-n (read-setting 'min-speed-kmh) "%.1f")
         ))
