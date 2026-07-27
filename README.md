@@ -5,7 +5,7 @@ Allows you to connect a Xiaomi or Ninebot display to a VESC controller.
 Install this package, then pick your model in the app UI (VESC Tool -> Navigation Bar -> App UI).
 Read one of the guides below to get started.
 
-- [DE Guide](/guide/DE.md)
+- [DE Guide](https://github.com/1zun4/vesc_scooter_support/blob/main/guide/DE.md)
 - [German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
 - [How-To Video](https://www.youtube.com/watch?v=kX8PsaxfoXQ)
 
@@ -28,7 +28,7 @@ After changing the model, save in the UI - the script restarts on its own with t
 <span style="color:rgb(97, 189, 109);">Green </span>to RX (Button) \
 1k Ohm Resistor from <span style="color:rgb(251, 160, 38);">3.3V</span> to <span style="color:rgb(97, 189, 109);">RX (Button)</span>
 
-![image](guide/imgs/23999.png)
+![image](https://raw.githubusercontent.com/1zun4/vesc_scooter_support/main/guide/imgs/23999.png)
 
 ## Features
 - [x] One package for G30, M365/1S/PRO2 and Slave ESCs - model switch in the UI
