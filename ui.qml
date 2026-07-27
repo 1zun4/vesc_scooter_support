@@ -98,11 +98,11 @@ Item {
             + " " + readReal(alarmVoltage, 1)
             + ")")
 
-        sendCode("(finish-settings-save)")
-
-        // Model change needs a lisp restart, ack-gated via "model-ok"
+        // A model change restarts lisp, which loads and applies everything on its own
         if (modelBox.currentIndex !== loadedModel) {
             sendCode("(save-model " + modelBox.currentIndex + ")")
+        } else {
+            sendCode("(finish-settings-save)")
         }
     }
 
