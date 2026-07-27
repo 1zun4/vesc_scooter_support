@@ -3,10 +3,12 @@ name: Build VESC Scooter Support Package
 on:
   push:
   pull_request:
+  release:
+    types: [published]
   workflow_dispatch:
 
 concurrency:
-  group: build-vescpkg-${{ github.ref }}
+  group: build-vescpkg-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
@@ -17,6 +19,9 @@ jobs:
   build:
     name: Build vesc_scooter_support.vescpkg
     runs-on: ubuntu-22.04
+
+    permissions:
+      contents: write
 
     steps:
       - name: Checkout repository
@@ -126,3 +131,11 @@ jobs:
           name: vesc-scooter-support-${{ github.sha }}
           if-no-files-found: error
           path: vesc_scooter_support.vescpkg
+
+      - name: Attach package to release
+        if: github.event_name == 'release'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            vesc_scooter_support.vescpkg --clobber
