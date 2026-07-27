@@ -13,7 +13,7 @@ Read one of the guides below to get started.
 Requires VESC firmware 7.00, available at https://vesc-project.com/
 
 ## Models
-One script for everything - the model is stored on the ESC and selected in the UI:
+One VESC package for everything:
 
 - **G30**: Ninebot G30 dashboard (Ninebot protocol)
 - **M365/1S/PRO2**: Xiaomi M365, 1S, Essential and PRO 2 dashboards (Xiaomi protocol)
@@ -31,10 +31,10 @@ After changing the model, save in the UI - the script restarts on its own with t
 ![image](https://raw.githubusercontent.com/1zun4/vesc_scooter_support/main/guide/imgs/23999.png)
 
 ## Features
-- [x] One package for G30, M365/1S/PRO2 and Slave ESCs - model switch in the UI
-- [x] All settings configurable in the UI, stored on the ESC (no more source editing)
-- [x] Multiple speed modes (Press twice)
-- [x] Secret speed modes (Hold throttle and brake and press twice)
+- [x] One package for G30, M365/1S/PRO2 and Slave ESCs
+- [x] Settings in the UI
+- [x] Speed mode switch (Press twice)
+- [x] Secret speed mode (Hold throttle and brake and press twice)
 - [x] Lock mode with alarm, beeping and braking (Press twice while holding brake)
 - [x] Motor start speed feature (More secure)
 - [x] Shutdown feature (Long press to turn off)
