@@ -12,6 +12,11 @@ Item {
     property int loadedModel: -1
     property bool isSlave: modelBox.currentIndex === 2
 
+    // Editing is blocked until every settings line arrived, empty fields would save as zero
+    readonly property var settingsLines: ["model", "general", "temps", "modes", "secret", "alarm"]
+    property int loadedLines: 0
+    readonly property bool settingsLoaded: loadedLines === (1 << settingsLines.length) - 1
+
     function sendCode(str) {
         mCommands.sendCustomAppData(str + "\0")
     }
@@ -40,6 +45,10 @@ Item {
     }
 
     function saveAllSettings() {
+        if (!settingsLoaded) {
+            return
+        }
+
         sendCode("(save-general-settings "
             + boolAtom(softwareAdc)
             + " " + boolAtom(showBatteryInIdle)
@@ -98,11 +107,17 @@ Item {
     }
 
     function getSettings() {
+        loadedLines = 0
         sendCode("(send-settings)")
     }
 
     function applySettingsLine(line) {
         var parts = line.split(" ")
+        var index = settingsLines.indexOf(parts[0])
+
+        if (index < 0) {
+            return
+        }
 
         if (parts[0] === "model") {
             loadedModel = Number.parseInt(parts[1])
@@ -147,10 +162,21 @@ Item {
             setReal(alarmGyroThreshold, parts[3], 1)
             setReal(alarmVoltage, parts[4], 1)
         }
+
+        loadedLines |= 1 << index
     }
 
     Component.onCompleted: {
         getSettings()
+    }
+
+    // Lisp may still be starting up, keep asking until everything is here
+    Timer {
+        id: retryTimer
+        interval: 2000
+        repeat: true
+        running: !settingsLoaded
+        onTriggered: sendCode("(send-settings)")
     }
 
     Timer {
@@ -179,6 +205,7 @@ Item {
             Layout.fillWidth: true
             implicitWidth: 0
             clip: true
+            enabled: settingsLoaded
 
             property int buttons: 4
             property int buttonWidth: 90
@@ -207,6 +234,8 @@ Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
+            enabled: settingsLoaded
+            opacity: settingsLoaded ? 1.0 : 0.0
 
             Page {
                 ScrollView {
@@ -403,15 +432,23 @@ Item {
             Button {
                 Layout.fillWidth: true
                 text: "Save"
+                enabled: settingsLoaded
                 onClicked: saveAllSettings()
             }
 
             Button {
                 Layout.fillWidth: true
                 text: "Reset"
+                enabled: settingsLoaded
                 onClicked: sendCode("(restore-settings-ui)")
             }
         }
+    }
+
+    BusyIndicator {
+        anchors.centerIn: parent
+        running: !settingsLoaded
+        visible: running
     }
 
     Connections {
@@ -420,20 +457,16 @@ Item {
         function onCustomAppDataReceived(data) {
             var message = data.toString().trim()
 
-            if (message.startsWith("model ")
-                    || message.startsWith("general ")
-                    || message.startsWith("temps ")
-                    || message.startsWith("modes ")
-                    || message.startsWith("secret ")
-                    || message.startsWith("alarm ")) {
-                applySettingsLine(message)
-            } else if (message === "model-ok") {
+            if (message === "model-ok") {
                 loadedModel = modelBox.currentIndex
+                loadedLines = 0
                 VescIf.emitStatusMessage("Model saved, restarting...", true)
                 mCommands.lispSetRunning(false)
                 restartTimer.start()
             } else if (message === "ok") {
                 VescIf.emitStatusMessage("Scooter settings saved.", true)
+            } else {
+                applySettingsLine(message)
             }
         }
     }
