@@ -131,10 +131,11 @@ Beim Flipsky 75100 demontiert ihr vorerst das schwarze Gehäuse und nehmt die Pl
 Erstmals müssen wir VESC Tool von der VESC Project Webseite ([VESC Project](https://vesc-project.com/)) herunterladen, um den Download zu erhalten müssen wir vorerst ein Konto erstellen und das kostenlose Paket "kaufen". Danach erhalten wir Zugriff auf die Downloads und wir laden nun das für unser Betriebssystem entsprechende VESC Tool herunter.
 
 Um mit dem VESC Tool den VESC anzusteuern müssen wir diesen vorher mit dem mitgelieferten USB Kabel an einen Computer anschließen, alternativ geht auch die Verbindung über Bluetooth.
-## Firmware Upgrade auf VESC 6.0
-Falls unser noch mit VESC 5.3 Firmware ausgeliefert wurde, müssen wir diesen vorest auf VESC 6.0 updaten, denn wir benötigen für die Integration des Xiaomi/NineBot Display (BLE Modul) das neue Lisp-Skript Feature, welches erlaubt in der Programmiersprache Lisp geschriebene Skripte auszuführen.
 
-Damit wir den VESC 6.0 upgraden können benötigen wir erstmals die neue Firmware. Diese können wir uns entweder selbst kompilieren oder wir laden sie herunter von GitHub.
+## Firmware Upgrade auf VESC 7.00
+Falls unser VESC noch mit einer älteren Firmware ausgeliefert wurde, müssen wir diesen vorerst auf VESC 7.00 updaten, denn wir benötigen für die Integration des Xiaomi/NineBot Display (BLE Modul) das Lisp-Skript Feature, welches erlaubt in der Programmiersprache Lisp geschriebene Skripte auszuführen.
+
+Damit wir den VESC upgraden können benötigen wir erstmals die neue Firmware. Diese können wir uns entweder selbst kompilieren oder wir laden sie herunter von GitHub.
 
 <u>Jetzt fängt der eigentliche Firmware Upgrade an.</u>
 
@@ -148,11 +149,11 @@ Damit wir den VESC 6.0 upgraden können benötigen wir erstmals die neue Firmwar
 * Updaten wir die eigentliche Firmware
 * Klicke auf den Reiter "Included Files" und aktiviere die Option "Show non-default firmwares".
 * Wähle nun deine Hardware Version aus (Flipsky 75100 V2: 75_100_V2, Ubox Single: UBOX_SINGLE_100)
--> Beim ersten Mal: Firmware direkt von [GitHub](https://github.com/vedderb/vesc_fw_archive/tree/main/6.00/) herunterladen und bei "Custom files" auswählen.
+-> Beim ersten Mal: Firmware direkt von [GitHub](https://github.com/vedderb/vesc_fw_archive/tree/main/7.00/) herunterladen und bei "Custom files" auswählen.
 * Wähle nun die Firmware: VESC_default_no_hw_limits.bin (damit entsperren wir auch jegliche Limitierungen - für Power User nützlich)
 * Drücke auf den Upload Button (Knopf mit Pfeil nach unten)
 * Warte auf den Abschluss des Uploads und auf den Dialog. Warte bis der VESC sich neugestartet hat und verbinde dich nun wieder. (10+ Sekunden)
-* Nun sollte dein VESC mit der aktuellen VESC 6.0 laufen.
+* Nun sollte dein VESC mit der aktuellen VESC 7.00 laufen.
 
 ## **Allgemeine Konfiguration des VESC**
 
@@ -173,95 +174,69 @@ Damit wir den VESC 6.0 upgraden können benötigen wir erstmals die neue Firmwar
 <details>
 <summary>Installation und Konfiguration der Display Integration</summary>
 
-Installieren ist in dem Fall dass wir das folgende Lisp Skript in unseren VESC Tool eintragen und ihn dieses ausführen lassen.
-Dafür müssen wir uns erstmal das Skript in die Zwischenablage kopieren.
-[URL unfurl="true"]https://github.com/m365fw/vesc_m365_dash/blob/main/m365_dash.lisp[/URL] ([Repository](https://github.com/m365fw/vesc_m365_dash))
-Um den Text in roher Fassung auszugeben drücken wir auf "Raw" und können uns bedenkenlos alles kopieren.
-
-*Folgende Features sind implementiert:*
-
-* Gashebel drücken beschleunigt deinen Motor ab einer Geschwindigkeit von 1km/h
-* Bremshebel drücken bremst mit deinem Motor ab
-* Langes drücken des Button schaltet das Display ab (jedoch nicht den VESC selbst!), einmal drücken schaltet ihn wieder an.
-* Einmal drücken schaltet das Licht an und aus.
-* Doppelt drücken wechselt den Speedmodi.
-* Bremse halten und doppelt drücken sperrt den Scooter - erneuter Ablauf macht dieses wieder rückgängig.
-* Anzeige des Batteriestandes im Idle (0 km/h) als Geschwindigkeitsanzeige
+Das Skript muss nicht mehr von Hand in den Lisp Tab kopiert werden. VESC Scooter Support liegt als fertiges Paket im VESC Package Store.
 
 **Installation:**
 
 * Verbinde den vorher vorbereiteten Displaystecker mit dem COMM Anschluss.
-* Verbinde dich nun mit VESC Tool mit dem VESC.
-* Drücke auf den Tab "VESC Dev Tools", gehe nun auf den Reiter "Lisp"
-* Füge nun das Skript aus der Zwischenablage in das große Textfeld ein
-* Klicke nun auf Upload und in der Konsole sollte nun eine Nachricht erscheinen
-* Begutachte nun dein Display und schaue ob nun der Batteriestand ersichtlich ist
-* Fertig. Nun kannst du dein Display verwenden.
+* Öffne VESC Tool und verbinde dich mit dem VESC über Bluetooth, USB oder WLAN.
+* Gehe auf **VESC Packages** und drücke **Update Archive**.
+* Wähle unter **Applications** den Eintrag **VESC Scooter Support** und drücke **Install**.
+* Öffne die App UI (VESC Tool -> Navigationsleiste -> App UI), wähle dein **Model** und drücke **Save**.
+* Begutachte nun dein Display und schaue ob der Batteriestand ersichtlich ist.
 
+Am Handy über den Package Store:
 
-<u>Allgemeine Einstellungen  **(**[Zeile](https://github.com/m365fw/vesc_m365_dash/blob/49545cf5943d9a446275e15d7ef8bc05ec63004e/m365_dash.lisp#L18)**)**:</u>
-```lisp
-(define light-default 0)
-(define show-faults 1)
-(define show-batt-in-idle 1)
-(define min-speed 1)
-(define button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
-```
+[![Setup am Handy](https://img.youtube.com/vi/QSrFjhdogBE/mqdefault.jpg)](https://youtu.be/QSrFjhdogBE)
 
-*(0 steht für DEAKTIVIERT, 1 steht für AKTIVIERT)*
+Am PC über **VESC Packages -> Load Custom** mit der `.vescpkg` aus den [Releases](https://github.com/1zun4/vesc_scooter_support/releases). So kommst du an Versionen, die noch nicht im Store sind:
 
-"light-default" stellt ein ob das Licht standardmäßig an sein soll.
-"show-faults" aktiviert die Anzeige für Fehler im Display, sobald ein Fehler im VESC auftritt.
-"show-batt-in-idle" aktiviert die Anzeige der Batterieprozent im Idle.
-"min-speed" gibt die minimale Geschwindigkeit an in der er denken soll dass man nicht fährt (Idle-Modus). Empfehlenswert auf 1 lassen!
+[![Setup am PC](https://img.youtube.com/vi/1xDxqPKV9qQ/mqdefault.jpg)](https://youtu.be/1xDxqPKV9qQ)
 
-<u>Einstellen der Geschwindigkeitsmodi** (**[**Zeile**](https://github.com/m365fw/vesc_m365_dash/blob/49545cf5943d9a446275e15d7ef8bc05ec63004e/m365_dash.lisp#L24)</u>**<u>):</u>**
-```lisp
-(define eco-speed (/ 7 3.6))
-(define eco-current 0.6)
-(define eco-watts 400)
-(define drive-speed (/ 17 3.6))
-(define drive-current 0.7)
-(define drive-watts 500)
-(define sport-speed (/ 21 3.6)) ; or 400
-(define sport-current 1.0)
-(define sport-watts 700) ; or 1500000
+## Bedienung am Display
 
-(define secret-enabled 1)
-(define secret-eco-speed (/ 25 3.6))
-(define secret-eco-current 0.6)
-(define secret-eco-watts 1500000)
-(define secret-drive-speed (/ 45 3.6))
-(define secret-drive-current 0.8)
-(define secret-drive-watts 1500000)
-(define secret-sport-speed (/ 400 3.6))
-(define secret-sport-current 1.0)
-(define secret-sport-watts 1500000)
-```
+* Gashebel drücken beschleunigt ab der eingestellten Start Speed.
+* Bremshebel drücken bremst mit dem Motor ab.
+* Einmal drücken schaltet das Licht an und aus.
+* Doppelt drücken wechselt den Speedmodus.
+* Gas und Bremse halten und doppelt drücken aktiviert den geheimen Modus.
+* Bremse halten und doppelt drücken sperrt den Scooter, der gleiche Ablauf entsperrt ihn wieder.
+* Langes drücken schaltet den Scooter ab, einmal drücken schaltet ihn wieder an.
 
-Dafür haben wir "speed", "current" und "watt", sowie folgend den Namen des Modi. Bspw. "speed-sport".
-Speed gibt die maximale Geschwindigkeit an. Watt gibt die maximalen Watt des Modis an, Current gibt die Prozentualen Phase Ampere an (welche als maximal eingestellt sind).
-Eco ist der Gehmodus, Drive der D Modus, Sport der S Modus. Secret ist der geheime Modus der durch die Kombination: Gas+Bremse gedrückt, 2x Knopf aktiviert werden kann.
+## Einstellungen in der App UI
 
-<u>Kalibration des Gaspedals und der Bremse (</u>[<u>Zeile</u>](https://github.com/m365fw/vesc_m365_dash/blob/49545cf5943d9a446275e15d7ef8bc05ec63004e/m365_dash.lisp#L7)<u>):</u>
-```lisp
-;Calibrate throttle min max
-(define cal-thr-lo 41.0)
-(define cal-thr-hi 167.0)
-(define thr-deadzone 0.05)
+Alle Einstellungen liegen in der App UI und werden im EEPROM des VESC gespeichert. Nach dem Ändern des Models startet das Skript von selbst neu.
 
-;Calibrate brake min max
-(define cal-brk-lo 39.0)
-(define cal-brk-hi 179.0)
-(define brk-deadzone 0.05)
-(define brk-minspeed 1)
-```
+<u>General:</u>
 
-Dieser Schritt ist nicht dringend nötig, aber empfehlenswert!
+**Model**: `G30` für das Ninebot G30 Display, `M365/1S/PRO2` für Xiaomi M365, 1S, Essential und PRO 2, `Slave` für den zweiten ESC im Dual Setup. \
+**Software ADC**: Gas und Bremse laufen über das Display. Ausgeschaltet laufen sie über die Hardware ADC Pins des VESC. \
+**Motor Temp Warning (°C)** und **FET Temp Warning (°C)**: ab dieser Temperatur zeigt das Display das Warnsymbol.
 
-Vorerst aktivieren wir "Poll status" in VESC Tool, damit wir in der rechten Box die aktuellen Werte erkennen für die Kalibration.
+<u>Modes:</u>
 
-Bei "Calibrate throttle min max" können wir den Erkennungsbereich des Gashebels einstellen, das wird von nöten wenn sich der Wert "throttle" nicht im Bereich 0.0 - 1.0 befindet. Selbe gilt für "Calibrate brake min max".
+**Show While Idle**: was im Stand angezeigt wird (Speed, Battery %, Motor Temp, Controller Temp, Voltage, Trip, Top Speed). \
+**Start Speed (km/h)**: ab dieser Geschwindigkeit werden Gas und Bremse freigegeben. \
+**Speed (km/h)**, **Current Scale**, **Watts** und **Field Weakening** jeweils für Eco (Gehmodus), Drive (D) und Sport (S).
 
+Speed gibt die maximale Geschwindigkeit an, Watts die maximale Leistung, Current Scale die prozentualen Phase Ampere von dem was im Motor Setup als Maximum eingestellt ist.
+
+<u>Secret:</u>
+
+Der geheime Modus wird mit gedrücktem Gas und gedrückter Bremse und 2x Knopf aktiviert. **Enabled** schaltet ihn frei, die restlichen Felder sind die gleichen wie unter Modes.
+
+<u>Alarm:</u>
+
+**Alarm Tone**, **Speed Trigger (km/h)**, **Gyro Trigger (deg/s)** und **Volume (V)** für die Alarmanlage im gesperrten Zustand (Bremse halten und 2x Knopf drücken).
+
+## Konfiguration der ADC App
+
+Gas und Bremse gehen über die ADC App an den Motor, diese muss einmalig eingerichtet werden.
+
+* **App Settings -> General**: **APP to Use** auf `ADC` stellen, dann **Write**.
+* **App Settings -> ADC -> General**: **Control Type** `Current`, **Use Filter** `True`, **Safe Start** `Regular`, **Update Rate** `1000 Hz`.
+* **App Settings -> ADC -> Mapping**: **ADC Mapping** öffnen, Gas und Bremse einmal komplett durchziehen und wieder loslassen, dann **Apply and Write**.
+
+Im Dual Setup zusätzlich **Multiple VESCs Over CAN** aktivieren und das Paket auf dem zweiten ESC mit dem Model **Slave** installieren.
 
 </details>

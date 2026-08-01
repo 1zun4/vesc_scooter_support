@@ -2,12 +2,30 @@
 Allows you to connect a Xiaomi or Ninebot display to a VESC controller.
 
 ## Installation
-Install this package, then pick your model in the app UI (VESC Tool -> Navigation Bar -> App UI).
-Read one of the guides below to get started.
+1. Open VESC Tool and connect to your VESC over Bluetooth, USB or WiFi.
+2. Go to **VESC Packages** and press **Update Archive**.
+3. Select **VESC Scooter Support** under **Applications** and press **Install**.
+4. Open the App UI (VESC Tool -> Navigation Bar -> App UI), pick your **Model** and press **Save**.
+5. Set up the ADC app, see below.
 
-- [DE Guide](https://github.com/1zun4/vesc_scooter_support/blob/main/guide/DE.md)
-- [German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
-- [How-To Video](https://www.youtube.com/watch?v=kX8PsaxfoXQ)
+Setup videos: [on a phone](https://youtu.be/QSrFjhdogBE) | [on a PC](https://youtu.be/1xDxqPKV9qQ)
+
+The PC video installs the `.vescpkg` from [Releases](https://github.com/1zun4/vesc_scooter_support/releases)
+through **VESC Packages -> Load Custom**, which is how you get a version that is not in the store yet.
+
+Guides: [DE Guide](https://github.com/1zun4/vesc_scooter_support/blob/main/guide/DE.md) |
+[German Rollerplausch Guide](https://rollerplausch.com/threads/vesc-controller-einbau-1s-pro2-g30.6032/)
+
+## ADC Setup
+Throttle and brake reach the motor through the ADC app, so it has to be set up once:
+
+- **App Settings -> General**: set **APP to Use** to `ADC`, then **Write**
+- **App Settings -> ADC -> General**: **Control Type** `Current`, **Use Filter** `True`, **Safe Start** `Regular`, **Update Rate** `1000 Hz`
+- **App Settings -> ADC -> Mapping**: open **ADC Mapping**, pull throttle and brake through their full range, then **Apply and Write**
+- Dual setup: turn on **Multiple VESCs Over CAN** and install the package on the second ESC with model **Slave**
+
+**Software ADC** in the App UI means throttle and brake come from the dashboard over UART.
+Turn it off when they are wired to the ADC pins of the VESC instead.
 
 ## Requirements
 Requires VESC firmware 7.00, available at https://vesc-project.com/
