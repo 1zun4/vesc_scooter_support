@@ -185,6 +185,8 @@ Das Skript muss nicht mehr von Hand in den Lisp Tab kopiert werden. VESC Scooter
 * Öffne die App UI (VESC Tool -> Navigationsleiste -> App UI), wähle dein **Model** und drücke **Save**.
 * Begutachte nun dein Display und schaue ob der Batteriestand ersichtlich ist.
 
+![image](imgs/package-store.png)
+
 Am Handy über den Package Store:
 
 [![Setup am Handy](https://img.youtube.com/vi/QSrFjhdogBE/mqdefault.jpg)](https://youtu.be/QSrFjhdogBE)
