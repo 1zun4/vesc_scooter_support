@@ -20,7 +20,7 @@
 
 ; Speed modes (km/h, watts, current scale)
 ; idle display: 0=speed 1=battery 2=motor temp 3=controller temp 4=voltage 5=trip 6=top speed
-(def idle-display 1)
+(def idle-display 0)
 (def min-speed 1) ; minimum speed in km/h to enable throttle and brake
 (def eco-speed (/ 7 3.6))
 (def eco-current 0.6)
@@ -174,7 +174,7 @@
         (write-setting 'alarm-speed-threshold 0.5)
         (write-setting 'alarm-gyro-threshold 10.0)
         (write-setting 'alarm-voltage 24.0)
-        (write-setting 'idle-display 1)
+        (write-setting 'idle-display 0)
         (write-setting 'min-speed-kmh 1.0)
         (write-setting 'eco-speed-kmh 7.0)
         (write-setting 'eco-current 0.6)
