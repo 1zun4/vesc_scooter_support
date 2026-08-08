@@ -18,6 +18,13 @@ Item {
         "Voltage", "Trip (km)", "Top Speed"
     ]
 
+    // Order matches the secret combos in the lisp script
+    readonly property var secretComboNames: [
+        "Throttle + Brake + 2x Press", "Throttle + Brake + 3x Press",
+        "Throttle + 3x Press", "Brake + 3x Press", "3x Press", "4x Press",
+        "Throttle + Hold Button", "Brake + Power On"
+    ]
+
     // Editing is blocked until every settings line arrived, empty fields would save as zero
     readonly property var settingsLines: ["model", "general", "temps", "modes", "secret", "alarm"]
     property int loadedLines: 0
@@ -90,6 +97,7 @@ Item {
 
         sendCode("(save-secret-settings "
             + boolAtom(secretEnabled)
+            + " " + secretCombo.currentIndex
             + " " + secretIdleDisplay.currentIndex
             + " " + readReal(secretMinSpeed, 1)
             + " " + readReal(secretEcoSpeed, 1)
@@ -159,20 +167,21 @@ Item {
             setReal(sportFw, parts[14], 1)
         } else if (parts[0] === "secret") {
             secretEnabled.checked = parseBoolToken(parts[1])
-            setIndex(secretIdleDisplay, parts[2])
-            setReal(secretMinSpeed, parts[3], 1)
-            setReal(secretEcoSpeed, parts[4], 1)
-            setReal(secretEcoCurrent, parts[5], 2)
-            setReal(secretEcoWatts, parts[6], 0)
-            setReal(secretEcoFw, parts[7], 1)
-            setReal(secretDriveSpeed, parts[8], 1)
-            setReal(secretDriveCurrent, parts[9], 2)
-            setReal(secretDriveWatts, parts[10], 0)
-            setReal(secretDriveFw, parts[11], 1)
-            setReal(secretSportSpeed, parts[12], 1)
-            setReal(secretSportCurrent, parts[13], 2)
-            setReal(secretSportWatts, parts[14], 0)
-            setReal(secretSportFw, parts[15], 1)
+            setIndex(secretCombo, parts[2])
+            setIndex(secretIdleDisplay, parts[3])
+            setReal(secretMinSpeed, parts[4], 1)
+            setReal(secretEcoSpeed, parts[5], 1)
+            setReal(secretEcoCurrent, parts[6], 2)
+            setReal(secretEcoWatts, parts[7], 0)
+            setReal(secretEcoFw, parts[8], 1)
+            setReal(secretDriveSpeed, parts[9], 1)
+            setReal(secretDriveCurrent, parts[10], 2)
+            setReal(secretDriveWatts, parts[11], 0)
+            setReal(secretDriveFw, parts[12], 1)
+            setReal(secretSportSpeed, parts[13], 1)
+            setReal(secretSportCurrent, parts[14], 2)
+            setReal(secretSportWatts, parts[15], 0)
+            setReal(secretSportFw, parts[16], 1)
         } else if (parts[0] === "alarm") {
             alarmTone.checked = parseBoolToken(parts[1])
             setReal(alarmSpeedThreshold, parts[2], 1)
@@ -383,6 +392,9 @@ Item {
                             columns: 2
                             rowSpacing: 4
                             columnSpacing: 8
+
+                            Label { text: "Activate With" }
+                            ComboBox { id: secretCombo; Layout.fillWidth: true; model: root.secretComboNames }
 
                             Label { text: "Show While Idle" }
                             ComboBox { id: secretIdleDisplay; Layout.fillWidth: true; model: root.idleDisplayNames }
