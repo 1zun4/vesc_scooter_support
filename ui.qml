@@ -11,11 +11,12 @@ Item {
     property Commands mCommands: VescIf.commands()
     property int loadedModel: -1
     property bool isSlave: modelBox.currentIndex === 2
+    readonly property string speedUnit: useMph.checked ? "mph" : "km/h"
 
     // Order matches the idle display modes in the lisp script
     readonly property var idleDisplayNames: [
         "Speed", "Battery %", "Motor Temp", "Controller Temp",
-        "Voltage", "Trip (km)", "Top Speed"
+        "Voltage", "Trip", "Top Speed"
     ]
 
     // Order matches the secret combos in the lisp script
@@ -68,6 +69,45 @@ Item {
         }
     }
 
+    // Speeds are always stored in km/h, the fields only show mph
+    readonly property real mphFactor: 0.621371
+
+    // A field that was not edited gives back exactly what it was loaded with, so switching
+    // the unit back and forth never rounds a speed away
+    function speedToKmh(field, mph) {
+        var number = Number.parseFloat(field.text)
+        if (!Number.isFinite(number)) {
+            return 0
+        }
+        if (!mph) {
+            return number
+        }
+        if (number.toFixed(1) === (field.kmh * mphFactor).toFixed(1)) {
+            return field.kmh
+        }
+        return number / mphFactor
+    }
+
+    function readSpeed(field) {
+        return speedToKmh(field, useMph.checked).toFixed(1)
+    }
+
+    function setSpeed(field, value) {
+        var number = Number(value)
+        if (Number.isFinite(number)) {
+            field.kmh = number
+            field.text = (useMph.checked ? number * mphFactor : number).toFixed(1)
+        }
+    }
+
+    function convertSpeedFields(toMph) {
+        var fields = [minSpeed, ecoSpeed, driveSpeed, sportSpeed, secretMinSpeed,
+            secretEcoSpeed, secretDriveSpeed, secretSportSpeed, alarmSpeedThreshold]
+        for (var i = 0; i < fields.length; i++) {
+            setSpeed(fields[i], speedToKmh(fields[i], !toMph))
+        }
+    }
+
     function saveAllSettings() {
         if (!settingsLoaded || saving) {
             return
@@ -77,6 +117,7 @@ Item {
 
         queue.push("(save-general-settings "
             + boolAtom(softwareAdc)
+            + " " + boolAtom(useMph)
             + ")")
 
         queue.push("(save-temp-settings "
@@ -86,16 +127,16 @@ Item {
 
         queue.push("(save-mode-settings "
             + idleDisplay.currentIndex
-            + " " + readReal(minSpeed, 1)
-            + " " + readReal(ecoSpeed, 1)
+            + " " + readSpeed(minSpeed)
+            + " " + readSpeed(ecoSpeed)
             + " " + readReal(ecoCurrent, 2)
             + " " + readReal(ecoWatts, 0)
             + " " + readReal(ecoFw, 1)
-            + " " + readReal(driveSpeed, 1)
+            + " " + readSpeed(driveSpeed)
             + " " + readReal(driveCurrent, 2)
             + " " + readReal(driveWatts, 0)
             + " " + readReal(driveFw, 1)
-            + " " + readReal(sportSpeed, 1)
+            + " " + readSpeed(sportSpeed)
             + " " + readReal(sportCurrent, 2)
             + " " + readReal(sportWatts, 0)
             + " " + readReal(sportFw, 1)
@@ -105,16 +146,16 @@ Item {
             + boolAtom(secretEnabled)
             + " " + secretCombo.currentIndex
             + " " + secretIdleDisplay.currentIndex
-            + " " + readReal(secretMinSpeed, 1)
-            + " " + readReal(secretEcoSpeed, 1)
+            + " " + readSpeed(secretMinSpeed)
+            + " " + readSpeed(secretEcoSpeed)
             + " " + readReal(secretEcoCurrent, 2)
             + " " + readReal(secretEcoWatts, 0)
             + " " + readReal(secretEcoFw, 1)
-            + " " + readReal(secretDriveSpeed, 1)
+            + " " + readSpeed(secretDriveSpeed)
             + " " + readReal(secretDriveCurrent, 2)
             + " " + readReal(secretDriveWatts, 0)
             + " " + readReal(secretDriveFw, 1)
-            + " " + readReal(secretSportSpeed, 1)
+            + " " + readSpeed(secretSportSpeed)
             + " " + readReal(secretSportCurrent, 2)
             + " " + readReal(secretSportWatts, 0)
             + " " + readReal(secretSportFw, 1)
@@ -122,7 +163,7 @@ Item {
 
         queue.push("(save-alarm-settings "
             + boolAtom(alarmTone)
-            + " " + readReal(alarmSpeedThreshold, 1)
+            + " " + readSpeed(alarmSpeedThreshold)
             + " " + readReal(alarmGyroThreshold, 1)
             + " " + readReal(alarmVoltage, 1)
             + ")")
@@ -193,21 +234,22 @@ Item {
             modelBox.currentIndex = loadedModel
         } else if (parts[0] === "general") {
             softwareAdc.checked = parseBoolToken(parts[1])
+            useMph.checked = parseBoolToken(parts[2])
         } else if (parts[0] === "temps") {
             setReal(tempWarningMotor, parts[1], 1)
             setReal(tempWarningFet, parts[2], 1)
         } else if (parts[0] === "modes") {
             setIndex(idleDisplay, parts[1])
-            setReal(minSpeed, parts[2], 1)
-            setReal(ecoSpeed, parts[3], 1)
+            setSpeed(minSpeed, parts[2])
+            setSpeed(ecoSpeed, parts[3])
             setReal(ecoCurrent, parts[4], 2)
             setReal(ecoWatts, parts[5], 0)
             setReal(ecoFw, parts[6], 1)
-            setReal(driveSpeed, parts[7], 1)
+            setSpeed(driveSpeed, parts[7])
             setReal(driveCurrent, parts[8], 2)
             setReal(driveWatts, parts[9], 0)
             setReal(driveFw, parts[10], 1)
-            setReal(sportSpeed, parts[11], 1)
+            setSpeed(sportSpeed, parts[11])
             setReal(sportCurrent, parts[12], 2)
             setReal(sportWatts, parts[13], 0)
             setReal(sportFw, parts[14], 1)
@@ -215,22 +257,22 @@ Item {
             secretEnabled.checked = parseBoolToken(parts[1])
             setIndex(secretCombo, parts[2])
             setIndex(secretIdleDisplay, parts[3])
-            setReal(secretMinSpeed, parts[4], 1)
-            setReal(secretEcoSpeed, parts[5], 1)
+            setSpeed(secretMinSpeed, parts[4])
+            setSpeed(secretEcoSpeed, parts[5])
             setReal(secretEcoCurrent, parts[6], 2)
             setReal(secretEcoWatts, parts[7], 0)
             setReal(secretEcoFw, parts[8], 1)
-            setReal(secretDriveSpeed, parts[9], 1)
+            setSpeed(secretDriveSpeed, parts[9])
             setReal(secretDriveCurrent, parts[10], 2)
             setReal(secretDriveWatts, parts[11], 0)
             setReal(secretDriveFw, parts[12], 1)
-            setReal(secretSportSpeed, parts[13], 1)
+            setSpeed(secretSportSpeed, parts[13])
             setReal(secretSportCurrent, parts[14], 2)
             setReal(secretSportWatts, parts[15], 0)
             setReal(secretSportFw, parts[16], 1)
         } else if (parts[0] === "alarm") {
             alarmTone.checked = parseBoolToken(parts[1])
-            setReal(alarmSpeedThreshold, parts[2], 1)
+            setSpeed(alarmSpeedThreshold, parts[2])
             setReal(alarmGyroThreshold, parts[3], 1)
             setReal(alarmVoltage, parts[4], 1)
         }
@@ -353,6 +395,13 @@ Item {
                                 text: "Software ADC"
                             }
 
+                            CheckBox {
+                                id: useMph
+                                Layout.columnSpan: 2
+                                text: "Use mph"
+                                onCheckedChanged: if (root.settingsLoaded) root.convertSpeedFields(checked)
+                            }
+
                             Label { text: "Motor Temp Warning (°C)" }
                             TextField { id: tempWarningMotor; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 200.0; decimals: 1 } }
 
@@ -384,8 +433,8 @@ Item {
                             Label { text: "Show While Idle" }
                             ComboBox { id: idleDisplay; Layout.fillWidth: true; model: root.idleDisplayNames }
 
-                            Label { text: "Start Speed (km/h)" }
-                            TextField { id: minSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
+                            Label { text: "Start Speed (" + root.speedUnit + ")" }
+                            TextField { id: minSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
                         }
 
                         GridLayout {
@@ -399,10 +448,10 @@ Item {
                             Label { text: "Drive"; font.bold: true; Layout.fillWidth: true }
                             Label { text: "Sport"; font.bold: true; Layout.fillWidth: true }
 
-                            Label { text: "Speed (km/h)" }
-                            TextField { id: ecoSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
-                            TextField { id: driveSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
-                            TextField { id: sportSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
+                            Label { text: "Speed (" + root.speedUnit + ")" }
+                            TextField { id: ecoSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
+                            TextField { id: driveSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 150.0; decimals: 1 } }
+                            TextField { id: sportSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
 
                             Label { text: "Current Scale" }
                             TextField { id: ecoCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
@@ -452,8 +501,8 @@ Item {
                             Label { text: "Show While Idle" }
                             ComboBox { id: secretIdleDisplay; Layout.fillWidth: true; model: root.idleDisplayNames }
 
-                            Label { text: "Start Speed (km/h)" }
-                            TextField { id: secretMinSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
+                            Label { text: "Start Speed (" + root.speedUnit + ")" }
+                            TextField { id: secretMinSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
                         }
 
                         GridLayout {
@@ -467,10 +516,10 @@ Item {
                             Label { text: "Drive"; font.bold: true; Layout.fillWidth: true }
                             Label { text: "Sport"; font.bold: true; Layout.fillWidth: true }
 
-                            Label { text: "Speed (km/h)" }
-                            TextField { id: secretEcoSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
-                            TextField { id: secretDriveSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 400.0; decimals: 1 } }
-                            TextField { id: secretSportSpeed; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 1000.0; decimals: 1 } }
+                            Label { text: "Speed (" + root.speedUnit + ")" }
+                            TextField { id: secretEcoSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 300.0; decimals: 1 } }
+                            TextField { id: secretDriveSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 400.0; decimals: 1 } }
+                            TextField { id: secretSportSpeed; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 1000.0; decimals: 1 } }
 
                             Label { text: "Current Scale" }
                             TextField { id: secretEcoCurrent; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 5.0; decimals: 2 } }
@@ -511,8 +560,8 @@ Item {
                             text: "Alarm Tone"
                         }
 
-                        Label { text: "Speed Trigger (km/h)" }
-                        TextField { id: alarmSpeedThreshold; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
+                        Label { text: "Speed Trigger (" + root.speedUnit + ")" }
+                        TextField { id: alarmSpeedThreshold; property real kmh: 0; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 50.0; decimals: 1 } }
 
                         Label { text: "Gyro Trigger (deg/s)" }
                         TextField { id: alarmGyroThreshold; Layout.fillWidth: true; validator: DoubleValidator { bottom: 0.0; top: 1000.0; decimals: 1 } }

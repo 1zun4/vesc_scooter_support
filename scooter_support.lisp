@@ -8,6 +8,7 @@
 
 ; Defaults, overwritten from EEPROM on start
 (def software-adc true)
+(def use-mph false) ; display in mph and miles instead of km/h and km
 (def temp-warning-motor 100) ; temperature warning for motor in degree celsius
 (def temp-warning-fet 80) ; temperature warning for fet in degree celsius
 
@@ -100,6 +101,7 @@
 (def eeprom-addrs '(
     (ver-code              . (0 i))
     (software-adc          . (1 b))
+    (use-mph               . (40 b))
     ; offset 3 is free, never renumber in use
     (temp-warning-motor    . (4 f))
     (temp-warning-fet      . (5 f))
@@ -148,7 +150,7 @@
         (cond
             ((eq type 'i) (eeprom-read-i addr))
             ((eq type 'f) (eeprom-read-f addr))
-            ((eq type 'b) (!= (eeprom-read-i addr) 0))
+            ((eq type 'b) (eq (eeprom-read-i addr) 1i32)) ; an offset never written reads nil
 )))
 
 ; Each store locks the system while it writes flash, so only touch changed values.
@@ -175,6 +177,7 @@
     {
         (var cur-model (read-setting 'model)) ; keep model across restores
         (write-setting 'software-adc true)
+        (write-setting 'use-mph false)
         (write-setting 'temp-warning-motor 100.0)
         (write-setting 'temp-warning-fet 80.0)
         (write-setting 'alarm-tone true)
@@ -223,6 +226,7 @@
         )
 
         (set 'software-adc (read-setting 'software-adc))
+        (set 'use-mph (read-setting 'use-mph))
         (set 'temp-warning-motor (read-setting 'temp-warning-motor))
         (set 'temp-warning-fet (read-setting 'temp-warning-fet))
         (set 'alarm-tone (read-setting 'alarm-tone))
@@ -286,8 +290,11 @@
     }
 )
 
-(defun save-general-settings (adc)
-    (write-setting 'software-adc adc)
+(defun save-general-settings (adc mph)
+    {
+        (write-setting 'software-adc adc)
+        (write-setting 'use-mph mph)
+    }
 )
 
 (defun save-temp-settings (motor-warning fet-warning)
@@ -385,7 +392,8 @@
         ))
         (send-data (str-merge
             "general "
-            (if (read-setting 'software-adc) "true" "false")
+            (if (read-setting 'software-adc) "true " "false ")
+            (if (read-setting 'use-mph) "true" "false")
         ))
         (send-data (str-merge
             "temps "
@@ -501,14 +509,18 @@
     )
 )
 
+(defun to-imperial (metric) ; km/h to mph, km to miles
+    (if use-mph (* metric 0.621371) metric)
+)
+
 (defun idle-value (mode)
     (cond
         ((= mode 1) (* (get-batt) 100))
         ((= mode 2) (get-highest-temp-mot))
         ((= mode 3) (get-highest-temp-fet))
         ((= mode 4) (get-vin))
-        ((= mode 5) (/ (- (get-dist-abs) trip-start) 1000))
-        ((= mode 6) (* (stats 'stat-speed-max) 3.6))
+        ((= mode 5) (to-imperial (/ (- (get-dist-abs) trip-start) 1000)))
+        ((= mode 6) (to-imperial (* (stats 'stat-speed-max) 3.6)))
         (t 0)
     )
 )
@@ -520,14 +532,15 @@
         (var idle-mode (if unlock secret-idle-display idle-display))
         (var crc-end (- (buflen tx-frame) 2)) ; crc bytes at end of frame
 
-        ; mode field (1=drive, 2=eco, 4=sport, 8=charge, 16=off, 32=lock)
+        ; mode field (1=drive, 2=eco, 4=sport, 8=charge, 16=off, 32=lock, 64=mph, 128=overheat)
+        (var mode-base (+ speedmode (if use-mph 64 0)))
         (if off
             (bufset-u8 tx-frame tx-base 16)
             (if lock
                 (bufset-u8 tx-frame tx-base 32) ; lock display
                 (if (or (> (get-temp-fet) temp-warning-fet) (> (get-temp-mot) temp-warning-motor)) ; temp icon will show up above warning degree
-                    (bufset-u8 tx-frame tx-base (+ 128 speedmode))
-                    (bufset-u8 tx-frame tx-base speedmode)
+                    (bufset-u8 tx-frame tx-base (+ 128 mode-base))
+                    (bufset-u8 tx-frame tx-base mode-base)
                 )
             )
         )
@@ -561,7 +574,7 @@
             (bufset-u8 tx-frame (+ tx-base 4) 0) ; lock display
             (if (and (> idle-mode 0) (< current-speed 1))
                 (bufset-u8 tx-frame (+ tx-base 4) (clamp-u8 (idle-value idle-mode)))
-                (bufset-u8 tx-frame (+ tx-base 4) current-speed)
+                (bufset-u8 tx-frame (+ tx-base 4) (to-imperial current-speed))
             )
         )
 

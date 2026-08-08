@@ -58,13 +58,13 @@ After changing the model, save in the UI - the script restarts on its own with t
 - [x] Motor start speed
 - [x] Idle display (battery, motor and controller temperature, voltage, trip or top speed)
 - [x] Temperature notification icon (configurable threshold)
+- [x] mph/km display toggle
 
 ## TODO
 - [ ] App communication (support third-party Xiaomi/NineBot apps)
 - [ ] Cruise control (throttle gesture in secret mode)
 - [ ] Idle timeout (shut down after X seconds of inactivity)
 - [ ] Rear light and brake light output
-- [ ] mph/km display toggle
 - [ ] Overmodulation factor per mode
 - [ ] Throttle/brake plausibility check (detect disconnected sensor)
 - [ ] Use BMS SoC for battery display when available

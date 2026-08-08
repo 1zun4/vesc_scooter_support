@@ -215,6 +215,7 @@ Beim Update auf Version 2.1 werden alle Einstellungen einmalig auf die Werkseins
 
 **Model**: `G30` für das Ninebot G30 Display, `M365/1S/PRO2` für Xiaomi M365, 1S, Essential und PRO 2, `Slave` für den zweiten ESC im Dual Setup. \
 **Software ADC**: Gas und Bremse laufen über das Display. Ausgeschaltet laufen sie über die Hardware ADC Pins des VESC. \
+**Use mph**: Display und alle Geschwindigkeitsfelder in mph und Meilen statt km/h und Kilometer. \
 **Motor Temp Warning (°C)** und **FET Temp Warning (°C)**: ab dieser Temperatur zeigt das Display das Warnsymbol.
 
 <u>Modes:</u>
