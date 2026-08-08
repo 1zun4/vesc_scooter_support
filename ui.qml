@@ -30,6 +30,10 @@ Item {
     property int loadedLines: 0
     readonly property bool settingsLoaded: loadedLines === (1 << settingsLines.length) - 1
 
+    // Commands still waiting to be confirmed by the script
+    property var saveQueue: []
+    property bool saving: false
+
     function sendCode(str) {
         mCommands.sendCustomAppData(str + "\0")
     }
@@ -65,20 +69,22 @@ Item {
     }
 
     function saveAllSettings() {
-        if (!settingsLoaded) {
+        if (!settingsLoaded || saving) {
             return
         }
 
-        sendCode("(save-general-settings "
+        var queue = []
+
+        queue.push("(save-general-settings "
             + boolAtom(softwareAdc)
             + ")")
 
-        sendCode("(save-temp-settings "
+        queue.push("(save-temp-settings "
             + readReal(tempWarningMotor, 1)
             + " " + readReal(tempWarningFet, 1)
             + ")")
 
-        sendCode("(save-mode-settings "
+        queue.push("(save-mode-settings "
             + idleDisplay.currentIndex
             + " " + readReal(minSpeed, 1)
             + " " + readReal(ecoSpeed, 1)
@@ -95,7 +101,7 @@ Item {
             + " " + readReal(sportFw, 1)
             + ")")
 
-        sendCode("(save-secret-settings "
+        queue.push("(save-secret-settings "
             + boolAtom(secretEnabled)
             + " " + secretCombo.currentIndex
             + " " + secretIdleDisplay.currentIndex
@@ -114,7 +120,7 @@ Item {
             + " " + readReal(secretSportFw, 1)
             + ")")
 
-        sendCode("(save-alarm-settings "
+        queue.push("(save-alarm-settings "
             + boolAtom(alarmTone)
             + " " + readReal(alarmSpeedThreshold, 1)
             + " " + readReal(alarmGyroThreshold, 1)
@@ -123,10 +129,50 @@ Item {
 
         // A model change restarts lisp, which loads and applies everything on its own
         if (modelBox.currentIndex !== loadedModel) {
-            sendCode("(save-model " + modelBox.currentIndex + ")")
+            queue.push("(save-model " + modelBox.currentIndex + ")")
         } else {
-            sendCode("(finish-settings-save)")
+            queue.push("(finish-settings-save)")
         }
+
+        saveQueue = queue
+        saving = true
+        sendSaveStep()
+    }
+
+    // Writing a setting locks the VESC while it writes flash, which drops anything that
+    // arrives meanwhile. One command at a time, and only once the last one was confirmed.
+    function sendSaveStep() {
+        if (saveQueue.length === 0) {
+            saving = false
+            return
+        }
+
+        ackTimer.restart()
+        sendCode(saveQueue[0])
+    }
+
+    function saveStepDone(ok) {
+        if (!saving) {
+            return
+        }
+
+        ackTimer.stop()
+
+        if (!ok) {
+            abortSave()
+            return
+        }
+
+        saveQueue = saveQueue.slice(1)
+        sendSaveStep()
+    }
+
+    function abortSave() {
+        ackTimer.stop()
+        saving = false
+        saveQueue = []
+        VescIf.emitStatusMessage("Saving failed, please try again.", false)
+        getSettings()
     }
 
     function getSettings() {
@@ -201,8 +247,15 @@ Item {
         id: retryTimer
         interval: 2000
         repeat: true
-        running: !settingsLoaded
+        running: !settingsLoaded && !saving
         onTriggered: sendCode("(send-settings)")
+    }
+
+    // Never resend the pending command, a second ack would skip the next one
+    Timer {
+        id: ackTimer
+        interval: 5000
+        onTriggered: abortSave()
     }
 
     Timer {
@@ -477,20 +530,21 @@ Item {
             Button {
                 Layout.fillWidth: true
                 text: "Load"
+                enabled: !saving
                 onClicked: getSettings()
             }
 
             Button {
                 Layout.fillWidth: true
                 text: "Save"
-                enabled: settingsLoaded
+                enabled: settingsLoaded && !saving
                 onClicked: saveAllSettings()
             }
 
             Button {
                 Layout.fillWidth: true
                 text: "Reset"
-                enabled: settingsLoaded
+                enabled: settingsLoaded && !saving
                 onClicked: sendCode("(restore-settings-ui)")
             }
         }
@@ -498,7 +552,7 @@ Item {
 
     BusyIndicator {
         anchors.centerIn: parent
-        running: !settingsLoaded
+        running: !settingsLoaded || saving
         visible: running
     }
 
@@ -508,7 +562,15 @@ Item {
         function onCustomAppDataReceived(data) {
             var message = data.toString().trim()
 
-            if (message === "model-ok") {
+            if (message === "ack") {
+                saveStepDone(true)
+            } else if (message === "err") {
+                saveStepDone(false)
+            } else if (message === "model-ok") {
+                // Lisp is about to be stopped, so no ack follows this one
+                ackTimer.stop()
+                saving = false
+                saveQueue = []
                 loadedModel = modelBox.currentIndex
                 loadedLines = 0
                 VescIf.emitStatusMessage("Model saved, restarting...", true)

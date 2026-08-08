@@ -151,15 +151,20 @@
             ((eq type 'b) (!= (eeprom-read-i addr) 0))
 )))
 
+; Each store locks the system while it writes flash, so only touch changed values.
+; Types must match before comparing, an eeprom read is i32/float and the UI sends plain ints.
 (defun write-setting (name val)
     (let (
             (addr (first (assoc eeprom-addrs name)))
             (type (second (assoc eeprom-addrs name)))
         )
         (cond
-            ((eq type 'i) (eeprom-store-i addr val))
-            ((eq type 'f) (eeprom-store-f addr val))
-            ((eq type 'b) (eeprom-store-i addr (if val 1 0)))
+            ((eq type 'i) (let ((new (to-i32 val)))
+                (if (not-eq (eeprom-read-i addr) new) (eeprom-store-i addr new))))
+            ((eq type 'f) (let ((new (to-float val)))
+                (if (not-eq (eeprom-read-f addr) new) (eeprom-store-f addr new))))
+            ((eq type 'b) (let ((new (if val 1i32 0i32)))
+                (if (not-eq (eeprom-read-i addr) new) (eeprom-store-i addr new))))
 )))
 
 (defun valid-model (m) ; eeprom reads nil when never written
@@ -433,10 +438,13 @@
     }
 )
 
+; The UI waits for this before sending the next command, a burst would overrun the mailbox
 (defun event-handler ()
     (loopwhile t
         (recv
-            ((event-data-rx . (? data)) (trap (eval (read data))))
+            ((event-data-rx . (? data))
+                (send-data (if (eq (car (trap (eval (read data)))) 'exit-ok) "ack" "err"))
+            )
             (_ nil)
 )))
 
