@@ -201,13 +201,15 @@ Am PC über **VESC Packages -> Load Custom** mit der `.vescpkg` aus den [Release
 * Bremshebel drücken bremst mit dem Motor ab.
 * Einmal drücken schaltet das Licht an und aus.
 * Doppelt drücken wechselt den Speedmodus.
-* Gas und Bremse halten und doppelt drücken aktiviert den geheimen Modus.
+* Die unter **Activate With** eingestellte Knopfkombination aktiviert den geheimen Modus, ab Werk Gas und Bremse halten und doppelt drücken.
 * Bremse halten und doppelt drücken sperrt den Scooter, der gleiche Ablauf entsperrt ihn wieder.
 * Langes drücken schaltet den Scooter ab, einmal drücken schaltet ihn wieder an.
 
 ## Einstellungen in der App UI
 
 Alle Einstellungen liegen in der App UI und werden im EEPROM des VESC gespeichert. Nach dem Ändern des Models startet das Skript von selbst neu.
+
+Beim Update auf Version 2.1 werden alle Einstellungen einmalig auf die Werkseinstellungen zurückgesetzt, nur das Model bleibt erhalten.
 
 <u>General:</u>
 
@@ -225,7 +227,18 @@ Speed gibt die maximale Geschwindigkeit an, Watts die maximale Leistung, Current
 
 <u>Secret:</u>
 
-Der geheime Modus wird mit gedrücktem Gas und gedrückter Bremse und 2x Knopf aktiviert. **Enabled** schaltet ihn frei, die restlichen Felder sind die gleichen wie unter Modes.
+**Enabled** schaltet den geheimen Modus frei. **Activate With** legt fest, womit er ein und ausgeschaltet wird:
+
+* `Throttle + Brake + 2x Press`: Gas und Bremse halten und 2x drücken (Werkseinstellung).
+* `Throttle + Brake + 3x Press`: Gas und Bremse halten und 3x drücken.
+* `Throttle + 3x Press`: nur Gas halten und 3x drücken, für Scooter ohne angeschlossene Bremse.
+* `Brake + 3x Press`: nur Bremse halten und 3x drücken.
+* `3x Press`: 3x drücken, ohne Hebel.
+* `4x Press`: 4x drücken, ohne Hebel.
+* `Throttle + Hold Button`: Gas halten und den Knopf lang gedrückt halten, der Scooter schaltet dabei nicht ab.
+* `Brake + Power On`: Bremse halten und den Scooter anschalten, er startet direkt im geheimen Modus. Ohne Bremse anschalten geht wieder zurück.
+
+Die restlichen Felder sind die gleichen wie unter Modes.
 
 <u>Alarm:</u>
 

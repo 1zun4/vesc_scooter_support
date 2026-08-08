@@ -1,4 +1,4 @@
-; VESC Scooter Support lisp script v2.0 by Izuna, AKA13 and Netzpfuscher
+; VESC Scooter Support lisp script v2.1 by Izuna, AKA13 and Netzpfuscher
 ; Supports G30 (Ninebot), M365/1S/PRO2 (Xiaomi) dashboards and Slave ESCs - model is set in the package UI
 ; Tested with VESC 7.00 on Spintend Ubox Single 85 200
 
@@ -35,8 +35,9 @@
 (def sport-watts 700)
 (def sport-fw 0)
 
-; Secret speed modes. To enable, press the button 2 times while holding break and throttle at the same time.
+; Secret speed modes. The button combination that toggles them is picked in the UI.
 (def secret-enabled true)
+(def secret-combo 0)
 (def secret-idle-display 1)
 (def secret-min-speed 1)
 (def secret-eco-speed (/ 27 3.6))
@@ -90,7 +91,7 @@
 
 @const-start
 
-(def settings-version 302i32)
+(def settings-version 303i32)
 (def button-safety-speed (/ 0.1 3.6)) ; disabling button above 0.1 km/h (due to safety reasons)
 (def min-adc-throttle 0.1) ; throttle and brake needed to reach the secret modes
 (def min-adc-brake 0.1)
@@ -99,7 +100,7 @@
 (def eeprom-addrs '(
     (ver-code              . (0 i))
     (software-adc          . (1 b))
-    ; offsets 2 and 3 are free, never renumber in use
+    ; offset 3 is free, never renumber in use
     (temp-warning-motor    . (4 f))
     (temp-warning-fet      . (5 f))
     (idle-display          . (6 i))
@@ -121,6 +122,7 @@
     (sport-watts           . (22 f))
     (sport-fw              . (23 f))
     (secret-enabled        . (24 b))
+    (secret-combo          . (2 i))
     (secret-idle-display   . (38 i))
     (secret-min-speed-kmh  . (39 f))
     (secret-eco-speed-kmh  . (25 f))
@@ -189,6 +191,7 @@
         (write-setting 'sport-watts 700.0)
         (write-setting 'sport-fw 0.0)
         (write-setting 'secret-enabled true)
+        (write-setting 'secret-combo 0)
         (write-setting 'secret-idle-display 1)
         (write-setting 'secret-min-speed-kmh 1.0)
         (write-setting 'secret-eco-speed-kmh 27.0)
@@ -236,6 +239,7 @@
         (set 'sport-watts (read-setting 'sport-watts))
         (set 'sport-fw (read-setting 'sport-fw))
         (set 'secret-enabled (read-setting 'secret-enabled))
+        (set 'secret-combo (read-setting 'secret-combo))
         (set 'secret-idle-display (read-setting 'secret-idle-display))
         (set 'secret-min-speed (read-setting 'secret-min-speed-kmh))
         (set 'secret-eco-speed (/ (read-setting 'secret-eco-speed-kmh) 3.6))
@@ -312,12 +316,13 @@
 )
 
 (defun save-secret-settings (
-        enabled idle min-speed-kmh
+        enabled combo idle min-speed-kmh
         eco-speed-kmh eco-current eco-watts eco-fw
         drive-speed-kmh drive-current drive-watts drive-fw
         sport-speed-kmh sport-current sport-watts sport-fw)
     {
         (write-setting 'secret-enabled enabled)
+        (write-setting 'secret-combo combo)
         (write-setting 'secret-idle-display idle)
         (write-setting 'secret-min-speed-kmh min-speed-kmh)
         (write-setting 'secret-eco-speed-kmh eco-speed-kmh)
@@ -402,6 +407,7 @@
         (send-data (str-merge
             "secret "
             (if (read-setting 'secret-enabled) "true " "false ")
+            (str-from-n (read-setting 'secret-combo) "%d ")
             (str-from-n (read-setting 'secret-idle-display) "%d ")
             (str-from-n (read-setting 'secret-min-speed-kmh) "%.1f ")
             (str-from-n (read-setting 'secret-eco-speed-kmh) "%.1f ")
@@ -636,71 +642,91 @@
     )
 )
 
-(defun handle-button()
-    (if (= presses 1) ; single press
-        (if off ; is it off? turn on scooter again
-            {
-                (set 'off false) ; turn on
-                (set 'feedback 1) ; beep feedback
-                (set 'unlock false) ; Disable unlock on turn off
-                (apply-mode) ; Apply mode on start-up
-                (stats-reset) ; reset stats when turning on
-                (set 'trip-start (get-dist-abs)) ; trip counts from turn-on
-            }
-            (if lock ; is it locked?
-                (set 'feedback 1) ; beep feedback
-                (set 'light (not light)) ; toggle light
-            )
+(defun toggle-secret()
+    {
+        (set 'unlock (not unlock))
+        (set 'feedback 2) ; beep 2x
+        (apply-mode)
+    }
+)
 
-        )
-        (if (>= presses 2) ; double press
-            {
-                (if (> (get-adc-decoded 1) min-adc-brake) ; if brake is pressed
-                    (if (and secret-enabled (> (get-adc-decoded 0) min-adc-throttle))
-                        {
-                            (set 'unlock (not unlock))
-                            (set 'feedback 2) ; beep 2x
-                            (apply-mode)
-                        }
-                        {
-                            (set 'unlock false)
-                            (apply-mode)
-                            (set 'lock (not lock)) ; lock on or off
-                            (set 'light false) ; turn off light when locking
-                            (set 'feedback 1) ; beep feedback
-                            (if (not lock)
-                                (stop-alarm)
-                            )
-                        }
-                    )
-                    {
-                        (if (not lock)
-                            {
-                                (cond
-                                    ((= speedmode 1) (set 'speedmode 4))
-                                    ((= speedmode 2) (set 'speedmode 1))
-                                    ((= speedmode 4) (set 'speedmode 2))
-                                )
-                                (apply-mode)
-                            }
-                        )
-                    }
-                )
-            }
-        )
+; Combos 6 and 7 are held gestures, they never match on a press count
+(defun secret-combo-active(thr brk)
+    (cond
+        ((= secret-combo 0) (and (>= presses 2) thr brk))
+        ((= secret-combo 1) (and (= presses 3) thr brk))
+        ((= secret-combo 2) (and (= presses 3) thr (not brk)))
+        ((= secret-combo 3) (and (= presses 3) brk (not thr)))
+        ((= secret-combo 4) (and (= presses 3) (not thr) (not brk)))
+        ((= secret-combo 5) (and (= presses 4) (not thr) (not brk)))
+        (t false)
     )
+)
+
+(defun handle-button()
+    {
+        (var thr (> (get-adc-decoded 0) min-adc-throttle))
+        (var brk (> (get-adc-decoded 1) min-adc-brake))
+
+        (cond
+            ((and secret-enabled (not off) (not lock) (secret-combo-active thr brk))
+                (toggle-secret)
+            )
+            ((= presses 1) ; single press
+                (if off ; is it off? turn on scooter again
+                    {
+                        (set 'off false) ; turn on
+                        (set 'unlock (and secret-enabled (= secret-combo 7) brk)) ; brake held while turning on
+                        (set 'feedback (if unlock 2 1)) ; beep feedback
+                        (apply-mode) ; Apply mode on start-up
+                        (stats-reset) ; reset stats when turning on
+                        (set 'trip-start (get-dist-abs)) ; trip counts from turn-on
+                    }
+                    (if lock ; is it locked?
+                        (set 'feedback 1) ; beep feedback
+                        (set 'light (not light)) ; toggle light
+                    )
+                )
+            )
+            ((and (>= presses 2) brk (not thr)) ; double press with brake
+                {
+                    (set 'unlock false)
+                    (apply-mode)
+                    (set 'lock (not lock)) ; lock on or off
+                    (set 'light false) ; turn off light when locking
+                    (set 'feedback 1) ; beep feedback
+                    (if (not lock)
+                        (stop-alarm)
+                    )
+                }
+            )
+            ((and (>= presses 2) (not brk) (not lock)) ; double press
+                {
+                    (cond
+                        ((= speedmode 1) (set 'speedmode 4))
+                        ((= speedmode 2) (set 'speedmode 1))
+                        ((= speedmode 4) (set 'speedmode 2))
+                    )
+                    (apply-mode)
+                }
+            )
+        )
+    }
 )
 
 (defun handle-holding-button()
     {
         (if (and (not lock) (not off)) ; it is locked and off?
-            {
-                (set 'light false) ; turn off light
-                (set 'feedback 1) ; beep feedback
-                (set 'unlock false) ; Disable unlock on turn off
-                (apply-mode)
-                (set 'off true) ; turn off
-            }
+            (if (and secret-enabled (= secret-combo 6) (> (get-adc-decoded 0) min-adc-throttle))
+                (toggle-secret)
+                {
+                    (set 'light false) ; turn off light
+                    (set 'feedback 1) ; beep feedback
+                    (set 'unlock false) ; Disable unlock on turn off
+                    (apply-mode)
+                    (set 'off true) ; turn off
+                }
+            )
         )
     }
 )
@@ -995,7 +1021,7 @@
             (if button ; check button is still pressed
                 (if (> time-passed 6000) ; long press after 6000 ms
                     {
-                        (if is-active
+                        (if (and is-active (> presses 0)) ; presses are cleared below, so this fires once per hold
                             (handle-holding-button)
                         )
                         (reset-button) ; reset button

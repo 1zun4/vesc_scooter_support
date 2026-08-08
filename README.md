@@ -52,7 +52,7 @@ After changing the model, save in the UI - the script restarts on its own with t
 - [x] One package for G30, M365/1S/PRO2 and Slave ESCs
 - [x] Settings in the UI
 - [x] Speed mode switch (Press twice)
-- [x] Secret speed mode (Hold throttle and brake and press twice)
+- [x] Secret speed mode (Button combination picked in the UI)
 - [x] Lock mode with alarm, beeping and braking (Press twice while holding brake)
 - [x] Shutdown support (Long press to turn off)
 - [x] Motor start speed
@@ -61,7 +61,6 @@ After changing the model, save in the UI - the script restarts on its own with t
 
 ## TODO
 - [ ] App communication (support third-party Xiaomi/NineBot apps)
-- [ ] More secret profile button combinations (e.g. 3x press without brake)
 - [ ] Cruise control (throttle gesture in secret mode)
 - [ ] Idle timeout (shut down after X seconds of inactivity)
 - [ ] Rear light and brake light output
